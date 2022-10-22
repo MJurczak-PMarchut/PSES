@@ -17,5 +17,3 @@ jobs:
       run: cd Debug && make && make all
     - name: CI run
       run: ./Debug/PSES
-    - name: Check_Eclipse
-      run: which eclipse
