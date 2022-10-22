@@ -16,4 +16,4 @@ jobs:
     - name: make
       run: cd Debug && make && make all
     - name: CI run
-      run: ./Debug/PSES
+      run: cd Debug && ls -l
