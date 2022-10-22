@@ -1,4 +1,4 @@
-name: C/C++ CI
+name: Lint C/C++ CI
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: make
-      run: cd Debug && make && make all
-    - name: CI run
-      run: ./Debug/PSES
+    - name: Get cppcheck
+      run: sudo apt-get install -y cppcheck
+    - name: Lint using cppcheck
+      run: cppcheck .
