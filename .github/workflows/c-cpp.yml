@@ -14,6 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: make
-      run: cd Debug && make all
+      run: cd Debug && make && make all
     - name: CI run
       run: ./Debug/PSES
