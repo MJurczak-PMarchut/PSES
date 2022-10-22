@@ -16,4 +16,4 @@ jobs:
     - name: Install Eclipse
       run: sudo snap install --classic eclipse
     - name: check eclipse
-      run: ls -l
+      run: eclipse --launcher.suppressErrors -nosplash -data ../ -application org.eclipse.cdt.managedbuilder.core.headlessbuild -import PSES -build PSES/Debug
