@@ -6,16 +6,20 @@
 // Description : Hello World in C++, Ansi-style
 //============================================================================
 
+#define CATCH_CONFIG_RUNNER
 #include <iostream>
 
 #include "catch.hpp"
 #include "test1.hpp"
+
 using namespace std;
 
+TEST_CASE( "Test virtual method", "[virtual_method]" )
+{
+	REQUIRE(test_return1() == 1);
+}
 
 int main() {
-	cout << "!!!Hello World!!!" << endl; // prints !!!Hello World!!!
-	TEST_CASE(
-			)
-	return EXIT_SUCCESS;
+	int result = Catch::Session().run();
+	return result;
 }
