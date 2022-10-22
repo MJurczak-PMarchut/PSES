@@ -18,4 +18,4 @@ jobs:
     - name: Build using Eclipse
       run: cd .. && eclipse --launcher.suppressErrors -nosplash -application org.eclipse.cdt.managedbuilder.core.headlessbuild -data . -importAll . -build PSES/Debug -no-indexer
     - name: Run Debug build
-      run: cd Debug && ls -l && ./PSES
+      run: cd Debug && ./PSES
