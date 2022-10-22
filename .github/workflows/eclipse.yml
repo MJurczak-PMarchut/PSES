@@ -15,11 +15,7 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install Eclipse
       run: cd .. && wget "http://www.mirrorservice.org/sites/download.eclipse.org/eclipseMirror/technology/epp/downloads/release/2022-09/R/eclipse-cpp-2022-09-R-linux-gtk-x86_64.tar.gz" && sudo tar xf eclipse-cpp-2022-09-R-linux-gtk-x86_64.tar.gz -C /opt && sudo ln -s /opt/eclipse/eclipse /usr/local/bin/
-    - name: check eclipse
-      run: cd .. && eclipse --launcher.suppressErrors -nosplash -application org.eclipse.cdt.managedbuilder.core.headlessbuild -data . -importAll . -build all -no-indexer
-    - name: save logs
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: Eclipse_log
-        path: /home/runner/work/PSES/.metadata/.log
+    - name: Build using Eclipse
+      run: cd .. && eclipse --launcher.suppressErrors -nosplash -application org.eclipse.cdt.managedbuilder.core.headlessbuild -data . -importAll . -build Debug -no-indexer
+    - name: Run Debug build
+      run: ./Debug/PSES
