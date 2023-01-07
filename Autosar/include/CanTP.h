@@ -20,10 +20,6 @@
 #define CANTP_AR_MINOR_VERSION    	4
 #define CANTP_AR_PATCH_VERSION    	0
 
-typedef struct {
-
-}CanTp_ConfigType;
-
 /*
  * @brief
  * Service ID: 0x01
