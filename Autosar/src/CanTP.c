@@ -143,8 +143,8 @@ void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo)
 		versioninfo->ar_minor_version = CANTP_AR_MINOR_VERSION;
 		versioninfo->ar_patch_version = CANTP_AR_PATCH_VERSION;
 		versioninfo->sw_major_version = CANTP_SW_MAJOR_VERSION;
-		versioninfo->ar_minor_version = CANTP_SW_MINOR_VERSION;
-		versioninfo->ar_patch_version = CANTP_SW_PATCH_VERSION;
+		versioninfo->sw_minor_version = CANTP_SW_MINOR_VERSION;
+		versioninfo->sw_patch_version = CANTP_SW_PATCH_VERSION;
 	}
 }
 

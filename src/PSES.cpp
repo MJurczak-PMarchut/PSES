@@ -17,6 +17,7 @@ using namespace std;
 TEST_CASE( "Test virtual method", "[virtual_method]" )
 {
 	REQUIRE(test_return1() == 1);
+	REQUIRE(test_return2() == 1);
 }
 
 int main() {

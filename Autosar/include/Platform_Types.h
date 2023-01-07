@@ -48,7 +48,7 @@
 #define True		(boolean)true
 #endif
 
-typedef _Bool      			boolean;
+typedef unsigned char      			boolean;
 typedef int8_t         		sint8;
 typedef uint8_t       		uint8;
 typedef char				char_t;
