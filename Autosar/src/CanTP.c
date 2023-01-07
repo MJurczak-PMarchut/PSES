@@ -161,7 +161,6 @@ Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 		PduR_CanTpTxConfirmation(nsdu->tx.cfg->nSduId, E_NOT_OK);
 		nsdu->tx.taskState = CANTP_WAIT;
 		ret = E_OK;
-
 	}
 	return ret;
 }
