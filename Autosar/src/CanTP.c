@@ -126,6 +126,8 @@ typedef struct
 
 static CanTp_ChannelRtType CanTp_Rt[CANTP_MAX_NUM_OF_CHANNEL];
 
+static Std_ReturnType CanTp_GetNSduFromPduId(PduIdType pduId, CanTp_NSduType **pNSdu);
+
 void CanTp_Init (const CanTp_ConfigType* CfgPtr)
 {
 	//TODO Init other variables
@@ -161,6 +163,15 @@ Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 		ret = E_OK;
 	}
 	return ret;
+}
+
+void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
+{
+	CanTp_NSduType *nsdu;
+	if(CanTp_GetNSduFromPduId(TxPduId, &nsdu) == E_OK)
+	{
+// ToDo
+	}
 }
 
 void CanTp_Shutdown (void)

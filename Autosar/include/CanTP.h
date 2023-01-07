@@ -10,6 +10,7 @@
 
 #include "CanTP_Types.h"
 #include "ComStack_Types.h"
+#include "mandatory_interfaces_mock.h"
 #define _VENDOR_ID 0
 #define _MODULE_ID 0
 #define _INSTANCE_ID 0
@@ -51,6 +52,12 @@ void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo);
  */
 Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId);
 
+/*
+ * @brief
+ * Service ID: 0x40
+ * This function allows lower layer communication interface module to confirm the transmission of a PDU, or the failure to transmit a PDU
+ */
+void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result);
 
 /*
  * @brief
