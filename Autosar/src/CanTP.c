@@ -17,6 +17,7 @@
 #define NULL_PTR NULL
 
 CanTp_StateType CanTPInternalState = CANTP_OFF;
+static CanTp_TxStateType CanTpTxState = CANTP_TX_WAIT;
 
 typedef uint8 CanTp_NPciType;
 
@@ -146,6 +147,16 @@ void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo)
 		versioninfo->ar_minor_version = CANTP_SW_MINOR_VERSION;
 		versioninfo->ar_patch_version = CANTP_SW_PATCH_VERSION;
 	}
+}
+
+Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
+{
+	Std_ReturnType ret = E_NOT_OK;
+	if(CanTPInternalState == CANTP_ON)
+	{
+		CanTpTxState = CANTP_TX_WAIT;
+	}
+	return ret;
 }
 
 void CanTp_Shutdown (void)
