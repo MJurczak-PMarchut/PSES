@@ -10,7 +10,14 @@
 
 #include "CanTP_Types.h"
 
-void PduR_CanTpTxConfirmation(PduIdType  TxPduId, Std_ReturnType result) {};
+#define PduR_CanTpTxConfirmation
+
+//void PduR_CanTpTxConfirmation(PduIdType  TxPduId, Std_ReturnType result);
+//
+//void PduR_CanTpTxConfirmation(PduIdType  TxPduId, Std_ReturnType result)
+//{
+//
+//}
 
 
 
