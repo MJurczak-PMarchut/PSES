@@ -35,9 +35,9 @@
 #define	NULL	0
 #endif
 
-//typedef uint8_t uint8;
-//typedef uint16_t uint16;
-//typedef uint32_t uint32;
+typedef uint8 uint8_t;
+typedef uint16 uint16_t;
+typedef uint32 uint32_t;
 
 
 typedef struct {
