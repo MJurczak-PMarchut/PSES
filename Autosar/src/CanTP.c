@@ -16,6 +16,8 @@
 
 #define NULL_PTR NULL
 
+static const CanTp_ConfigType *CanTp_ConfigPtr = NULL_PTR;
+
 CanTp_StateType CanTPInternalState = CANTP_OFF;
 
 typedef uint8 CanTp_NPciType;
@@ -148,12 +150,12 @@ void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo)
 	}
 }
 
+
 void CanTp_Shutdown (void)
 {
 	//TODO Stop all connections
 	CanTPInternalState = CANTP_OFF;
 }
-
 
 
 static Std_ReturnType CanTp_GetNSduFromPduId(PduIdType pduId, CanTp_NSduType **pNSdu)
@@ -268,9 +270,9 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
                             /* SWS_CanTp_00093:(on both receiver and sender side) with a handle whose communication type is functional,
                              * the CanTp module shall reject the request and report the runtime error code CANTP_E_INVALID_TATYPE to the Default Error Tracer.*/
                             //TODO
-//                        	CanTp_ReportRuntimeError(0x00u,
-//                                                     CANTP_TRANSMIT_API_ID,
-//                                                     CANTP_E_INVALID_TATYPE);
+                        	//CanTp_ReportRuntimeError(0x00u,
+                        	//CANTP_TRANSMIT_API_ID,
+                        	//CANTP_E_INVALID_TATYPE);
                         }
                     }
 
@@ -283,20 +285,83 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
             else
             {
             	//TODO
-//                CanTp_ReportRuntimeError(0x00u, CANTP_TRANSMIT_API_ID, CANTP_E_INVALID_TX_ID);
+            	//CanTp_ReportRuntimeError(0x00u, CANTP_TRANSMIT_API_ID, CANTP_E_INVALID_TX_ID);
             }
         }
         else
         {
         	//TODO
-//        	CanTp_ReportRuntimeError(0x00u, CANTP_TRANSMIT_API_ID, CANTP_E_PARAM_POINTER);
+        	//CanTp_ReportRuntimeError(0x00u, CANTP_TRANSMIT_API_ID, CANTP_E_PARAM_POINTER);
         }
     }
     else
     {
     	//TODO
-//    	CanTp_ReportRuntimeError(0x00u, CANTP_TRANSMIT_API_ID, CANTP_E_UNINIT);
+    	//CanTp_ReportRuntimeError(0x00u, CANTP_TRANSMIT_API_ID, CANTP_E_UNINIT);
     }
 
     return tmp_return;
+}
+
+
+/*------------------------------------------------------------------------------------------------*/
+/* global scheduled function definitions.                                                         */
+/*------------------------------------------------------------------------------------------------*/
+
+void CanTp_MainFunction(void)
+{
+    uint8_least i;
+    uint32 dt;
+    uint32_least channel_idx;
+    uint32_least n_sdu_idx;
+    CanTp_NSduType *p_n_sdu;
+
+    CanTp_TaskStateType task_state_rx;
+    CanTp_TaskStateType task_state_tx;
+
+    if ((CanTp_StateType)CanTPInternalState == (CanTp_StateType)CANTP_ON)
+    {
+        for (channel_idx = 0x00u; channel_idx < (uint32_least)CANTP_MAX_NUM_OF_CHANNEL;
+             channel_idx++)
+        {
+            for (n_sdu_idx = 0x00u; n_sdu_idx < (uint32_least)CANTP_MAX_NUM_OF_N_SDU; n_sdu_idx++)
+            {
+                p_n_sdu = &CanTp_Rt[channel_idx].sdu[n_sdu_idx];
+
+                task_state_rx = p_n_sdu->rx.shared.taskState;
+
+                task_state_tx = p_n_sdu->tx.taskState;
+
+                if (task_state_rx == CANTP_PROCESSING)
+                {
+                    CanTp_PerformStepRx(p_n_sdu);
+                }
+                if (task_state_tx == CANTP_PROCESSING)
+                {
+                    CanTp_PerformStepTx(p_n_sdu);
+                }
+
+#if (OS_GET_TIME_API == STD_ON)
+
+                dt = CanTp_GetElapsedValue();
+#else
+
+                dt = CanTp_ConfigPtr->mainFunctionPeriod;
+
+#endif
+
+                for (i = 0x00u; i < 0x06u; ++i)
+                {
+                    p_n_sdu->n[i] += dt;
+                }
+
+                p_n_sdu->rx.st_min += dt;
+                p_n_sdu->tx.st_min += dt;
+            }
+        }
+    }
+    else
+    {
+        CanTp_ReportError(0x00u, CANTP_MAIN_FUNCTION_API_ID, CANTP_E_UNINIT);
+    }
 }
