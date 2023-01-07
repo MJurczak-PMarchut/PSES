@@ -7,7 +7,7 @@
 
 #ifndef TEST1_HPP_
 #define TEST1_HPP_
-#include <stdlib.h>
+#include <stdint.h>
 
 uint8_t test_return1(void)
 {

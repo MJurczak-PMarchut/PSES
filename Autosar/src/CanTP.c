@@ -8,6 +8,10 @@
 
 #include "CanTP.h"
 
+#ifndef DET_H
+#include <Det.h>
+#endif /* #ifndef DET_H */
+
 #define CANTP_CAN_FRAME_SIZE (0x08u)
 
 #ifndef CANTP_MAX_NUM_OF_N_SDU
