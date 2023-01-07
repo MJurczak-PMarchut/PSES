@@ -47,4 +47,12 @@ void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo);
 void CanTp_Shutdown (void);
 
 
+/*
+ * @brief
+ * Service ID:0x49
+ * Requests transmission of a PDU.
+ *
+ */
+Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr );
+
 #endif /* INCLUDE_CANTP_H_ */

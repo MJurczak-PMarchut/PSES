@@ -10,6 +10,7 @@
 
 #include "Std_Types.h"
 #include "Platform_Types.h"
+#include "ComStack_Types.h"
 
 typedef enum {
 	CANTP_OFF, CANTP_ON

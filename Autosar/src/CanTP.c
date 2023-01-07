@@ -38,3 +38,10 @@ void CanTp_Shutdown (void)
 	//TODO Stop all connections
 	CanTPInternalState = CANTP_OFF;
 }
+
+
+
+Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
+{
+
+}
