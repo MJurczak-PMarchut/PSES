@@ -9,6 +9,7 @@
 #define INCLUDE_CANTP_H_
 
 #include "CanTP_Types.h"
+#include "ComStack_Types.h"
 #define _VENDOR_ID 0
 #define _MODULE_ID 0
 #define _INSTANCE_ID 0
@@ -33,6 +34,13 @@ void CanTp_Init (const CanTp_ConfigType* CfgPtr);
  * This function returns the version information of the CanTp module
  */
 void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo);
+
+/*
+ * @brief
+ * Service ID: 0x4a
+ * This function requests cancellation of an ongoing transmission of a PDU in a lower layer communication module
+ */
+Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId);
 
 
 /*
