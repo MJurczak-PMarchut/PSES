@@ -52,12 +52,15 @@ void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo);
  */
 Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId);
 
+<<<<<<< HEAD
 /*
  * @brief
  * Service ID: 0x40
  * This function allows lower layer communication interface module to confirm the transmission of a PDU, or the failure to transmit a PDU
  */
 void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result);
+=======
+>>>>>>> cf17f5d01222eb30a530c8dd1d1ecf6bcfa650c7
 
 /*
  * @brief
