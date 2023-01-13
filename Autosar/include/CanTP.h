@@ -31,6 +31,10 @@
 #define CANTP_AR_MINOR_VERSION    	4
 #define CANTP_AR_PATCH_VERSION    	0
 
+#define CANTP_DIR_RX 0
+#define CANTP_DIR_TX 1
+
+
 /*
  * @brief
  * Service ID: 0x01
@@ -52,15 +56,14 @@ void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo);
  */
 Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId);
 
-<<<<<<< HEAD
+
 /*
  * @brief
  * Service ID: 0x40
  * This function allows lower layer communication interface module to confirm the transmission of a PDU, or the failure to transmit a PDU
  */
 void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result);
-=======
->>>>>>> cf17f5d01222eb30a530c8dd1d1ecf6bcfa650c7
+
 
 /*
  * @brief
@@ -77,5 +80,14 @@ void CanTp_Shutdown (void);
  *
  */
 Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr );
+
+
+/*
+ * @brief
+ * Service ID:0x0b
+ * This service is used to read the current value of reception parameters BS and STmin for a specified N-SDU.
+ *
+ */
+Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint16* value);
 
 #endif /* INCLUDE_CANTP_H_ */

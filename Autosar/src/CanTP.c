@@ -211,7 +211,48 @@ static Std_ReturnType CanTp_GetNSduFromPduId(PduIdType pduId, CanTp_NSduType **p
     return tmp_return;
 }
 
+Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint16* value)
+{
+	CanTp_NSduType *nsdu;
+	uint16 val = 0;
+	Std_ReturnType ret = E_NOT_OK;
 
+	if((CanTPInternalState == CANTP_ON) &&
+		(CanTp_GetNSduFromPduId(id, &nsdu) == E_OK))
+	{
+		switch(parameter)
+		{
+			case TP_STMIN:
+				if(nsdu->dir == CANTP_DIR_RX)
+				{
+					val = nsdu->rx.shared.m_param.st_min;
+					ret = E_OK;
+				}
+				else if(nsdu->dir == CANTP_DIR_TX)
+				{
+					val = nsdu->tx.st_min;
+					ret = E_OK;
+				}
+				break;
+			case TP_BS:
+				if(nsdu->dir == CANTP_DIR_RX)
+				{
+					val = nsdu->rx.shared.m_param.bs;
+					ret = E_OK;
+				}
+				else if(nsdu->dir == CANTP_DIR_TX)
+				{
+					val = nsdu->tx.bs;
+					ret = E_OK;
+				}
+				break;
+			default:
+				break;
+		}
+	}
+	*value = val;
+	return ret;
+}
 
 Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 {
