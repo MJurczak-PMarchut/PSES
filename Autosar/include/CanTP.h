@@ -10,7 +10,7 @@
 
 #include "CanTP_Types.h"
 #include "ComStack_Types.h"
-#include "mandatory_interfaces_mock.h"
+
 #define _VENDOR_ID 0
 #define _MODULE_ID 0
 #define _INSTANCE_ID 0

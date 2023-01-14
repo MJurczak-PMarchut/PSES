@@ -7,7 +7,7 @@
 
 
 #include "CanTP.h"
-
+#include "mandatory_interfaces_mock.h"
 #define CANTP_CAN_FRAME_SIZE (0x08u)
 
 #ifndef CANTP_MAX_NUM_OF_N_SDU

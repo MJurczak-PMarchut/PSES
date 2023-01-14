@@ -17,7 +17,7 @@ OBJS += \
 src/%.o: ../src/%.cpp src/subdir.mk
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross G++ Compiler'
-	g++ -I../../PSES/UT_Tools -I../../PSES/UT -I"C:\Users\Paulina\eclipse-workspace\PSES\Autosar\include" -I"C:\Users\Paulina\eclipse-workspace\PSES\Autosar\src" -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" -o "$@" "$<"
+	g++ -I../UT_Tools -I../UT -I../Autosar/include -I../Autosar/src -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 
