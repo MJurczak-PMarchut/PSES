@@ -2,8 +2,4 @@
 *.o
 *.settings
 *.d
-<<<<<<< HEAD
-
-=======
->>>>>>> 77dcfe6 (create CanTp_CancelTransmit)
 /Debug/
