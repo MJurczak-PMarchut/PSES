@@ -2,3 +2,5 @@
 *.o
 *.settings
 *.d
+
+/Debug/

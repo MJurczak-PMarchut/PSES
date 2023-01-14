@@ -126,6 +126,8 @@ typedef struct
 
 static CanTp_ChannelRtType CanTp_Rt[CANTP_MAX_NUM_OF_CHANNEL];
 
+static Std_ReturnType CanTp_GetNSduFromPduId(PduIdType pduId, CanTp_NSduType **pNSdu);
+
 void CanTp_Init (const CanTp_ConfigType* CfgPtr)
 {
 	//TODO Init other variables
@@ -145,6 +147,30 @@ void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo)
 		versioninfo->sw_major_version = CANTP_SW_MAJOR_VERSION;
 		versioninfo->sw_minor_version = CANTP_SW_MINOR_VERSION;
 		versioninfo->sw_patch_version = CANTP_SW_PATCH_VERSION;
+	}
+}
+
+Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
+{
+	Std_ReturnType ret = E_NOT_OK;
+	CanTp_NSduType *nsdu;
+
+	if((CanTPInternalState == CANTP_ON) &&
+		(CanTp_GetNSduFromPduId(TxPduId, &nsdu) == E_OK))
+	{
+		PduR_CanTpTxConfirmation(nsdu->tx.cfg->nSduId, E_NOT_OK);
+		nsdu->tx.taskState = CANTP_WAIT;
+		ret = E_OK;
+	}
+	return ret;
+}
+
+void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
+{
+	CanTp_NSduType *nsdu;
+	if(CanTp_GetNSduFromPduId(TxPduId, &nsdu) == E_OK)
+	{
+// ToDo
 	}
 }
 
@@ -185,7 +211,48 @@ static Std_ReturnType CanTp_GetNSduFromPduId(PduIdType pduId, CanTp_NSduType **p
     return tmp_return;
 }
 
+Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint16* value)
+{
+	CanTp_NSduType *nsdu;
+	uint16 val = 0;
+	Std_ReturnType ret = E_NOT_OK;
 
+	if((CanTPInternalState == CANTP_ON) &&
+		(CanTp_GetNSduFromPduId(id, &nsdu) == E_OK))
+	{
+		switch(parameter)
+		{
+			case TP_STMIN:
+				if(nsdu->dir == CANTP_DIR_RX)
+				{
+					val = nsdu->rx.shared.m_param.st_min;
+					ret = E_OK;
+				}
+				else if(nsdu->dir == CANTP_DIR_TX)
+				{
+					val = nsdu->tx.st_min;
+					ret = E_OK;
+				}
+				break;
+			case TP_BS:
+				if(nsdu->dir == CANTP_DIR_RX)
+				{
+					val = nsdu->rx.shared.m_param.bs;
+					ret = E_OK;
+				}
+				else if(nsdu->dir == CANTP_DIR_TX)
+				{
+					val = nsdu->tx.bs;
+					ret = E_OK;
+				}
+				break;
+			default:
+				break;
+		}
+	}
+	*value = val;
+	return ret;
+}
 
 Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 {
