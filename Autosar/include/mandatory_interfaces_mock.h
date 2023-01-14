@@ -10,11 +10,7 @@
 
 #include "CanTP_Types.h"
 
-#define PduR_CanTpTxConfirmation
-
 void PduR_CanTpTxConfirmation(PduIdType  TxPduId, Std_ReturnType result) {};
-
-
 
 
 #endif /* INCLUDE_MANDATORY_INTERFACES_MOCK_H_ */
