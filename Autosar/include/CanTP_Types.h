@@ -36,6 +36,19 @@ extern "C" {
  * @addtogroup CANTP_H_GTDEF
  * @{
  */
+typedef enum
+{
+    /**
+     * @brief tx
+     */
+    CANTP_TX,
+
+    /**
+     * @brief rx
+     */
+    CANTP_RX
+
+} CanTp_CommDir; /* CanTp_CommDir. */
 
 typedef enum
 {
