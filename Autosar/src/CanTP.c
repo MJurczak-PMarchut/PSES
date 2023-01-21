@@ -163,7 +163,7 @@ static CanTP_InternalStateType CanTP_State;
 void CanTp_Init (const CanTp_ConfigType* CfgPtr)
 {
 	//Init all to 0
-	memcpy(CanTP_State, 0, sizeof(CanTP_State));
+	memcpy(&CanTP_State, 0, sizeof(CanTP_State));
 	//CanTP in on state
 	CanTP_State.CanTP_State = CANTP_ON;
 	//And tx and rx is waiting
@@ -193,8 +193,7 @@ Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 	Std_ReturnType ret = E_NOT_OK;
 	CanTp_NSduType *nsdu;
 
-	if((CanTPInternalState == CANTP_ON) &&
-		(CanTp_GetNSduFromPduId(TxPduId, &nsdu) == E_OK))
+	if((CanTP_State.CanTP_State == CANTP_ON))
 	{
 		PduR_CanTpTxConfirmation(nsdu->tx.cfg->nSduId, E_NOT_OK);
 		nsdu->tx.taskState = CANTP_TX_WAIT;
@@ -206,7 +205,7 @@ Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
 {
 	CanTp_NSduType *nsdu;
-	if(CanTp_GetNSduFromPduId(TxPduId, &nsdu) == E_OK)
+	if(E_OK)
 	{
 // ToDo
 	}
