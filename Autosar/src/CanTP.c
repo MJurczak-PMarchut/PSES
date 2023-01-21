@@ -260,6 +260,20 @@ Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint
 	return ret;
 }
 
+Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
+{
+	CanTp_NSduType *nsdu;
+	Std_ReturnType ret = E_NOT_OK;
+
+	if((CanTPInternalState == CANTP_ON) &&
+		(CanTp_GetNSduFromPduId(RxPduId, &nsdu) == E_OK))
+	{
+		PduR_CanTpRxConfirmation(RxPduId, E_NOT_OK);
+	}
+
+	return ret;
+}
+
 Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, uint16 value)
 {
 	CanTp_NSduType *nsdu;
