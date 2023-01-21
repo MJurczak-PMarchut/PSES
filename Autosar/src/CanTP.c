@@ -146,6 +146,7 @@ typedef struct
 //     CanTp_NSduType sdu[CANTP_MAX_NUM_OF_N_SDU];
 // } CanTp_ChannelRtType;
 //
+
 // static CanTp_ChannelRtType CanTp_Rt[CANTP_MAX_NUM_OF_CHANNEL];
 
 static Std_ReturnType CanTp_GetNSduFromPduId(PduIdType pduId, CanTp_NSduType **pNSdu);
@@ -284,7 +285,7 @@ Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
 	CanTp_RxNSduType *nsdu;
 	Std_ReturnType ret = E_NOT_OK;
 
-	if((CanTP_State.CanTP_State == CANTP_ON) &&
+	if((CanTPInternalState == CANTP_ON) &&
 		(CanTp_GetNSduFromPduId(RxPduId, &nsdu) == E_OK))
 	{
 		PduR_CanTpRxConfirmation(RxPduId, E_NOT_OK);
