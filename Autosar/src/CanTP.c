@@ -78,7 +78,6 @@ typedef struct
     {
     	CanTp_RxState_Type taskState;
         CanTp_FrameStateType state;
-
         /**
          * @brief structure containing all parameters accessible via @ref CanTp_ReadParameter/@ref
          * CanTp_ChangeParameter.
@@ -142,14 +141,13 @@ typedef struct
     uint32 t_flag;
 } CanTp_NSduType;
 
-typedef struct
-{
-    CanTp_NSduType sdu[CANTP_MAX_NUM_OF_N_SDU];
-} CanTp_ChannelRtType;
+// typedef struct
+// {
+//     CanTp_NSduType sdu[CANTP_MAX_NUM_OF_N_SDU];
+// } CanTp_ChannelRtType;
+//
 
-static CanTp_ChannelRtType CanTp_Rt[CANTP_MAX_NUM_OF_CHANNEL];
-
-static Std_ReturnType CanTp_GetNSduFromPduId(PduIdType pduId, CanTp_NSduType **pNSdu);
+// static CanTp_ChannelRtType CanTp_Rt[CANTP_MAX_NUM_OF_CHANNEL];
 
 typedef struct{
 	CanTp_RxStateVariablesType 	RxState;
@@ -191,12 +189,12 @@ void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo)
 Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 {
 	Std_ReturnType ret = E_NOT_OK;
-	CanTp_NSduType *nsdu;
+	CanTp_TxNSduType *nsdu;
 
 	if((CanTP_State.CanTP_State == CANTP_ON))
 	{
-		PduR_CanTpTxConfirmation(nsdu->tx.cfg->nSduId, E_NOT_OK);
-		nsdu->tx.taskState = CANTP_TX_WAIT;
+		PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
+		// nsdu->tx.taskState = CANTP_TX_WAIT;
 		ret = E_OK;
 	}
 	return ret;
@@ -221,9 +219,74 @@ void CanTp_Shutdown (void)
 	CanTP_State.CanTP_State = CANTP_OFF;
 }
 
+Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint16* value)
+{
+	CanTp_RxNSduType *nsdu;
+	uint16 val = 0;
+	Std_ReturnType ret = E_NOT_OK;
+
+	if((CanTP_State.CanTP_State == CANTP_ON) &&
+        (CanTP_State.RxState.CanTp_RxState == CANTP_RX_WAIT))
+	{
+		switch(parameter)
+		{
+			case TP_STMIN:
+				val = nsdu->sTMin;
+				ret = E_OK;
+				break;
+			case TP_BS:
+				val = nsdu->bs;
+				ret = E_OK;
+				break;
+			default:
+				break;
+		}
+	}
+	*value = val;
+	return ret;
+}
+
+Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
+{
+	CanTp_RxNSduType *nsdu;
+	Std_ReturnType ret = E_NOT_OK;
+
+	if(CanTP_State.CanTP_State == CANTP_ON)
+	{
+		PduR_CanTpRxConfirmation(RxPduId, E_NOT_OK);
+	}
+
+	return ret;
+}
+
+Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, uint16 value)
+{
+	CanTp_RxNSduType *nsdu;
+	Std_ReturnType ret = E_NOT_OK;
+
+	if((CanTP_State.CanTP_State == CANTP_ON) &&
+		(CanTP_State.RxState.CanTp_RxState == CANTP_RX_WAIT))
+	{
+		switch(parameter)
+		{
+			case TP_STMIN:
+				nsdu->sTMin= value;
+				ret = E_OK;
+				break;
+			case TP_BS:
+				nsdu->bs = value;
+				ret = E_OK;
+				break;
+			default:
+				break;
+		}
+    }
+	return ret;
+}
+
 Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 {
-    CanTp_NSduType *p_n_sdu = NULL_PTR;
+	CanTp_TxNSduType *p_n_sdu = NULL_PTR;
     Std_ReturnType tmp_return = E_NOT_OK;
     PduInfoType Tmp_Pdu;
     BufReq_ReturnType BufReq_State;
@@ -301,7 +364,7 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 		/* SWS_CanTp_00206: the function CanTp_Transmit shall reject a request if the
 		 * CanTp_Transmit service is called for a N-SDU identifier which is being used in a
 		 * currently running CAN Transport Layer session. */
-		if ((p_n_sdu->tx.taskState != CANTP_TX_PROCESSING) &&
+		if ((CanTP_State.TxState.CanTp_TxState != CANTP_TX_PROCESSING) &&
 			(PduInfoPtr->SduLength > 0x0000u) && (PduInfoPtr->SduLength <= 0x0FFFu))
 		{
 		}
