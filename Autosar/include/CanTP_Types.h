@@ -36,6 +36,19 @@ extern "C" {
  * @addtogroup CANTP_H_GTDEF
  * @{
  */
+typedef enum
+{
+    /**
+     * @brief tx
+     */
+    CANTP_TX,
+
+    /**
+     * @brief rx
+     */
+    CANTP_RX
+
+} CanTp_CommDir; /* CanTp_CommDir. */
 
 typedef enum
 {
@@ -161,7 +174,7 @@ typedef struct
     const CanTp_NSaType *pNSa;
     const CanTp_NTaType *pNTa;
     const CanTp_NAeType *pNAe;
-    const uint8 bs; /* CanTpBs. */
+    uint8 bs; /* CanTpBs. */
     const uint32 nar; /* CanTpNar. */
     const uint32 nbr; /* CanTpNbr. */
     const uint32 ncr; /* CanTpNcr. */
@@ -170,7 +183,7 @@ typedef struct
     /**
      * @brief separation time minimum between two consecutive frames [us].
      */
-    const uint32 sTMin; /* CanTpSTmin. */
+    uint32 sTMin; /* CanTpSTmin. */
     const CanTp_AddressingFormatType af; /* CanTpRxAddressingFormat. */
     const CanTp_RxPaddingActivationType padding; /* CanTpRxPaddingActivation. */
     const CanTp_ComTypeType taType; /* CanTpRxTaType. */

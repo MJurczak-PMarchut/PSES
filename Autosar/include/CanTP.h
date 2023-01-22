@@ -90,4 +90,10 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
  */
 Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint16* value);
 
+
+/*
+ * TODO add brief
+ */
+void CanTp_RxIndication ( PduIdType RxPduId, const PduInfoType* PduInfoPtr);
+
 #endif /* INCLUDE_CANTP_H_ */
