@@ -9,10 +9,11 @@
 #define UT_CANTP_CPP_
 #include <stdlib.h>
 
-//#define TEST_NO_MAIN
+#define TEST_NO_MAIN
 
 #include "acutest.h"
 #include "fff.h"
+#include "UT_CanTP.hpp"
 #include "CanTP.c"
 
 DEFINE_FFF_GLOBALS;
@@ -44,11 +45,5 @@ void test_CanTp_GetVersionInfo(void)
 	TEST_CHECK(pver.sw_patch_version == ver.sw_patch_version);
 	TEST_CHECK(pver.vendorID == ver.vendorID);
 }
-
-TEST_LIST = {
-    { "Test of CanTp_Init", test_CanTp_Init },
-	{ "Test of CanTp_GetVersionInfo", test_CanTp_GetVersionInfo },/* Format to { "nazwa testu", nazwa_funkcji } */
-    { NULL, NULL }                                        /* To musi być na końcu */
-};
 
 #endif /* UT_CANTP_CPP_ */
