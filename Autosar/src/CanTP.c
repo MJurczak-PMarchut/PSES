@@ -156,10 +156,10 @@ Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 {
 	Std_ReturnType ret = E_NOT_OK;
 
-	if((CanTP_State.CanTP_State == CANTP_ON))
+	if(CanTP_State.CanTP_State == CANTP_ON)
 	{
 		PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
-		 CanTP_State.TxState.CanTp_TxState = CANTP_TX_WAIT;
+		CanTP_State.TxState.CanTp_TxState = CANTP_TX_WAIT;
 		ret = E_OK;
 	}
 	return ret;
@@ -168,13 +168,21 @@ Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
 {
 	CanTp_TxNSduType *nsdu;
-	if(E_OK)
+	if(CanTP_State.CanTP_State == CANTP_ON)
 	{
-// ToDo
-	}
-	else
-	{
-		CanTp_CancelTransmit(TxPduId);
+		//ToDo reset timer N_As
+		if(result == E_OK)
+		{
+	// ToDo
+		}
+		else if(result == E_NOT_OK)
+		{
+			CanTp_CancelTransmit(TxPduId);
+		}
+		else
+		{
+			// incorrect behaviour
+		}
 	}
 }
 
