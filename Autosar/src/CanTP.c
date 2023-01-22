@@ -119,7 +119,7 @@ typedef struct
 typedef struct{
     uint16 CanTp_MessageLength;
     uint16 CanTp_ExpectedCFNo;
-    uint16 CanTp_ReceivedSent;
+    uint16 CanTp_ReceivedBytes;
     CanTp_RxState_Type CanTp_RxState;
     PduIdType CanTp_CurrentRxId;
     uint8 CanTp_NoOfBlocksTillCTS;
@@ -170,10 +170,10 @@ typedef enum {
     } CanTPFrameType;
 
 typedef struct{
-    uint8 SN; // Sequence Nubmer of consecutive frame
+    uint8 SN; // Sequence Number of consecutive frame
     uint8 BS; // Block Size FC frame
     uint8 FS; // Status from flow control
-    uint8 ST; // Sepsration Time FF
+    uint8 ST; // Separation Time FF
     CanTPFrameType FrameType;
     uint32 FrameLenght;
 } CanPCI_Type;
@@ -415,7 +415,77 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
  */
 static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoType *PduInfoPtr, CanPCI_Type *Can_PCI)
 {
-	return E_NOT_OK;
+	BufReq_ReturnType Buf_Status;
+	PduLengthType buffer_size;
+	Std_ReturnType retval = E_NOT_OK;
+	/*
+	 * [SWS_CanTp_00166] ⌈At the reception of a FF or last CF of a block, the CanTp
+	 * module shall start a time-out N_Br before calling PduR_CanTpStartOfReception or PduR_CanTpCopyRxData. ⌋ ( )
+	 */
+
+	//TODO @Justyna start a time-out N_Br
+
+	/*
+	 * CanTp ask PDU Router to make a buffer available for
+	 *incoming data with PduR_CanTpStartOfReception callback.
+	 *
+	 */
+	Buf_Status = PduR_CanTpStartOfReception(RxPduId, PduInfoPtr, Can_PCI->FrameLenght, &buffer_size);
+    /*
+    [SWS_CanTp_00318] ⌈After the reception of a First Frame, if the function PduR_CanTpStartOfReception()returns BUFREQ_E_OVFL to the CanTp module,
+    the CanTp module shall send a Flow Control N-PDU with overflow status (FC(OVFLW)) and abort the N-SDU reception. */
+	if(Buf_Status == BUFREQ_E_OVFL){
+		/*
+		 * [SWS_CanTp_00318] ⌈After the reception of a First Frame, if the function
+		 * PduR_CanTpStartOfReception()returns BUFREQ_E_OVFL to the CanTp module,
+		 * the CanTp module shall send a Flow Control N-PDU with overflow status
+		 * (FC(OVFLW)) and abort the N-SDU reception.⌋ ( )
+		 */
+		//TODO Send FC
+		retval = E_NOT_OK;
+	}
+	else if(Buf_Status == BUFREQ_E_NOT_OK){
+		retval = E_NOT_OK;
+	}
+	else if(Buf_Status == BUFREQ_E_BUSY){
+		retval = E_NOT_OK;
+	}
+	else if(Buf_Status == BUFREQ_OK){
+        CanTP_State.RxState.CanTp_MessageLength = Can_PCI->FrameLenght;
+        CanTP_State.RxState.CanTp_CurrentRxId = RxPduId;
+        /*
+         * [SWS_CanTp_00339] ⌈After the reception of a First Frame or Single Frame, if the
+         * function PduR_CanTpStartOfReception() returns BUFREQ_OK with a smaller
+         * available buffer size than needed for the already received data, the CanTp module
+         * shall abort the reception of the N-SDU and call PduR_CanTpRxIndication() with
+         * the result E_NOT_OK. ⌋ ( )
+         */
+
+
+        //We received FF so 7 bytes
+        if(buffer_size < 7){
+        	PduR_CanTpRxIndication (CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
+        	retval = E_NOT_OK;
+        }
+
+		/*
+		 * [SWS_CanTp_00082] ⌈After the reception of a First Frame, if the function
+		 * PduR_CanTpStartOfReception() returns BUFREQ_OK with a smaller available
+		 * buffer size than needed for the next block, the CanTp module shall start the timer N_Br.⌋ ( )
+		 */
+		//  we need additional 7 bytes for CF
+		if(buffer_size < 14){
+			//TODO Send FC(WAIT) to wait for buffer
+	        //TODO @Justyna start N_Br
+		}
+
+		CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+		retval = E_OK;
+	}
+	else{
+		retval = E_NOT_OK;
+	}
+	return retval;
 }
 
 static Std_ReturnType CanTp_GetPCI(const PduInfoType* PduInfoPtr, CanPCI_Type* CanPCI)
@@ -450,6 +520,8 @@ static void CanTp_RxIndicationHandleWaitState(PduIdType RxPduId, const PduInfoTy
 	if(retval != E_OK)
 	{
 		//report error or abort
+		CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+		CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
 	}
 }
 
@@ -488,6 +560,8 @@ static void CanTp_RxIndicationHandleProcessingState(PduIdType RxPduId, const Pdu
 	if(retval != E_OK)
 	{
 		//report error or abort
+		CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+		CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
 	}
 }
 
@@ -517,7 +591,7 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 		case ConsecutiveFrame:
 			//We should not receive CF at this time as we do not have enough buffer space
 			//We reset communication and report an error
-			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
+			PduR_CanTpRxIndication (CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
 			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
 			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
 			break;
@@ -528,6 +602,8 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 	if(retval != E_OK)
 	{
 		//report error or abort
+		CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+		CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
 	}
 }
 
