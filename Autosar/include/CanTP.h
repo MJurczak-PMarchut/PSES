@@ -8,8 +8,8 @@
 #ifndef INCLUDE_CANTP_H_
 #define INCLUDE_CANTP_H_
 
-#include "CanTP_Types.h"
 #include "ComStack_Types.h"
+#include "CanTP_Types.h"
 
 #define _VENDOR_ID 0
 #define _MODULE_ID 0
