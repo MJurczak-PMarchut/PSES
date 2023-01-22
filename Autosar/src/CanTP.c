@@ -146,7 +146,15 @@ void CanTp_Init (const CanTp_ConfigType* CfgPtr)
 	//And tx and rx is waiting
 	CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
 	CanTP_State.TxState.CanTp_TxState = CANTP_TX_WAIT;
-	//Todo @Justyna Init timerów
+
+	//reset all timers
+	CanTp_TReset(&N_As);
+	CanTp_TReset(&N_Bs);
+	CanTp_TReset(&N_Cs);
+	CanTp_TReset(&N_Ar);
+	CanTp_TReset(&N_Br);
+	CanTp_TReset(&N_Cr);
+
 
 }
 
@@ -203,6 +211,13 @@ void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
 void CanTp_Shutdown (void)
 {
 	//TODO Stop all connections
+	//reset all timers
+		CanTp_TReset(&N_As);
+		CanTp_TReset(&N_Bs);
+		CanTp_TReset(&N_Cs);
+		CanTp_TReset(&N_Ar);
+		CanTp_TReset(&N_Br);
+		CanTp_TReset(&N_Cr);
 	CanTP_State.CanTP_State = CANTP_OFF;
 }
 
@@ -319,6 +334,7 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 		else if (BufReq_State == BUFREQ_E_BUSY) {
 			//And now we wait for the buffer to become ready
 			//Start timers
+
 		}
 		else
 		{

@@ -1,5 +1,9 @@
 #include "CanTp_Timers.h"
 
+#ifndef UINT32_MAX
+#define UINT32_MAX 0xFFFFFFFF
+#endif
+
 void CanTp_TStart(CanTp_Timer_type *timer){
 
     timer->state = TIMER_ACTIVE;
@@ -19,6 +23,9 @@ Std_ReturnType CanTp_Timer_Incr(CanTp_Timer_type *timer){
         else{
             ret = E_NOT_OK;
         }
+    }
+    else{
+    	ret = E_NOT_OK;
     }
     return ret;
 }
