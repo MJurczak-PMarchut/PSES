@@ -420,16 +420,103 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
  */
 static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const PduInfoType *PduInfoPtr, CanPCI_Type *Can_PCI)
 {
-    PduLengthType buffer_size;      // use when calling PduR callbacks
-    BufReq_ReturnType Buf_Status;   // use when calling PduR callbacks
-    PduInfoType Extracted_Data;
-    uint16 current_block_size;
+    PduLengthType buffer_size;
+    BufReq_ReturnType buf_Status;
+    PduInfoType ULPduInfo;
+    uint16 required_blocks;
     Std_ReturnType retval = E_NOT_OK;
 
-    //@Justyna
+    //@Justyna reset N_Cr
+
+    if(CanTP_State.RxState.CanTp_CurrentRxId == RxPduId)
+    {
+    	if(CanTP_State.RxState.CanTp_ExpectedCFNo == Can_PCI->SN)
+    	{
+    		ULPduInfo.SduDataPtr = PduInfoPtr->SduDataPtr+1;
+    		ULPduInfo.SduLength = Can_PCI->FrameLength;
+            /*
+             * [SWS_CanTp_00269] ⌈After reception of each Consecutive Frame the CanTp module shall
+             * call the PduR_CanTpCopyRxData() function with a PduInfo pointer
+             * containing data buffer and data length:
+            */
+    		buf_Status = PduR_CanTpCopyRxData(RxPduId,  &ULPduInfo, &buffer_size);
+    		if(buf_Status == BUFREQ_OK)
+    		{
+    			CanTP_State.RxState.CanTp_ReceivedBytes += PduInfoPtr->SduLength;
+    			//CanTP_State.RxState.CanTp_ReceivedBytes += Can_PCI->FrameLength
+    			//TODO ask during consultations
+    			CanTP_State.RxState.CanTp_NoOfBlocksTillCTS--;
+    			if(CanTP_State.RxState.CanTp_MessageLength == CanTP_State.RxState.CanTp_ReceivedBytes){
+    				//All data received
+                    /*
+                     * [SWS_CanTp_00084] ⌈When the transport reception session is completed
+                     * (successfully or not) the CanTp module shall call the upper layer
+                     * notification service PduR_CanTpRxIndication().
+                     */
+    				PduR_CanTpRxIndication(RxPduId, E_OK);
+    				CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+    				CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+    				retval = E_OK;
+    			}
+    			else{
+    				//More expected
+    				CanTP_State.RxState.CanTp_ExpectedCFNo++;
+    				//check if FC needed
+					//We assume a buffer is locked so we did not lose any space
+    				if(CanTP_State.RxState.CanTp_NoOfBlocksTillCTS == 0){
+    					//We may require time so lets calculate how many block we can receive
+    					required_blocks = buffer_size / 7;
+    					// if non zero then we can at least receive one frame
+    					if(required_blocks > 0){
+    						// TODO Send FC(CTS)
+    						CanTP_State.RxState.CanTp_NoOfBlocksTillCTS = required_blocks;
+    						CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+    					}
+    					else{
+    						// TODO Send FC(WAIT)
+    						CanTP_State.RxState.CanTp_RxState = CANTP_RX_SUSPENDED;
+    					}
+    					retval = E_OK;
+    				}
+    				else{
+    					//We still got more frames before FC
+    					//Nothing to do
+    					retval = E_OK;
+    				}
+    			}
+    		}
+    		else{
+    			//Bufreq error
+                /* [SWS_CanTp_00271] ⌈If the PduR_CanTpCopyRxData() returns BUFREQ_E_NOT_OK
+                 * after reception of a Consecutive Frame in a block the CanTp shall abort the
+                 * reception of N-SDU and notify the PduR module by calling the
+                 * PduR_CanTpRxIndication() with the result E_NOT_OK.
+                 */
+    			PduR_CanTpRxIndication(RxPduId, E_NOT_OK);
+				CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+				CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+    		}
+    	}
+    	else{
+    		//Zły numer SN ramki
+            /*
+             * [SWS_CanTp_00314] ⌈The CanTp shall check the correctness of each SN received during a segmented reception.
+             * In case of wrong SN received the CanTp module shall abort reception and notify the upper layer of this failure
+             * by calling the indication function PduR_CanTpRxIndication() with the result E_NOT_OK.
+            */
+			PduR_CanTpRxIndication(RxPduId, E_NOT_OK);
+			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+    	}
+    }
+    else{
+    	//zły PDU ID, jw
+		PduR_CanTpRxIndication(RxPduId, E_NOT_OK);
+		CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+		CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+    }
     return retval;
 }
-
 /*
  * TODO Add brief
  * Handle Single frame reception
@@ -763,7 +850,7 @@ static void CanTp_RxIndicationHandleProcessingState(PduIdType RxPduId, const Pdu
 			retval = CanTp_FlowFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case ConsecutiveFrame:
-			//TODO Handle CF reception
+			retval = CanTp_ConsecutiveFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		default:
 			//Error to be reported or ignored
