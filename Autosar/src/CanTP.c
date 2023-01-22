@@ -423,7 +423,7 @@ static Std_ReturnType CanTp_FlowFrameReceived(PduIdType RxPduId, const PduInfoTy
 	Std_ReturnType retval = E_NOT_OK;
 	//We received FC so we are transmitting
 	//Did we get correct frame?
-	if((CanTP_State.TxState.CanTp_TxState == CANTP_TX_PROCESSING) || (CanTP_State.TxState.CanTp_TxState == CANTP_RX_SUSPENDED))
+	if((CanTP_State.TxState.CanTp_TxState == CANTP_TX_PROCESSING) || (CanTP_State.TxState.CanTp_TxState == CANTP_TX_SUSPENDED))
 	{
 		/*
 		 * [SWS_CanTp_00057] ⌈If unexpected frames are received, the CanTp module shall
