@@ -7,6 +7,8 @@
 
 
 #include "CanTP.h"
+#include "PduR_CanTp.h"
+#include "CanTp_Timers.h"
 #include "mandatory_interfaces_mock.h"
 #define CANTP_CAN_FRAME_SIZE (0x08u)
 
@@ -127,6 +129,16 @@ typedef struct
 } CanTp_ChannelRtType;
 
 static CanTp_ChannelRtType CanTp_Rt[CANTP_MAX_NUM_OF_CHANNEL];
+
+//TIMERY!!!!!!!!!!!!!
+CanTp_Timer_type N_Ar = {TIMER_NOT_ACTIVE, 0, N_AR_TIMEOUT_VAL};
+CanTp_Timer_type N_Br = {TIMER_NOT_ACTIVE, 0, N_BR_TIMEOUT_VAL};
+CanTp_Timer_type N_Cr = {TIMER_NOT_ACTIVE, 0, N_CR_TIMEOUT_VAL};
+
+CanTp_Timer_type N_As = {TIMER_NOT_ACTIVE, 0, N_AS_TIMEOUT_VAL};
+CanTp_Timer_type N_Bs = {TIMER_NOT_ACTIVE, 0, N_BS_TIMEOUT_VAL};
+CanTp_Timer_type N_Cs = {TIMER_NOT_ACTIVE, 0, N_CS_TIMEOUT_VAL};
+//KONIEC TIMEROW!!!!!!!!!!!!!!!!!!!
 
 static Std_ReturnType CanTp_GetNSduFromPduId(PduIdType pduId, CanTp_NSduType **pNSdu);
 
