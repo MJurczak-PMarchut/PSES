@@ -158,6 +158,12 @@ typedef struct{
 } CanTP_InternalStateType;
 
 
+typedef enum{
+	FS_OVFLW = 0,
+	FS_WAIT,
+	FS_CTS
+}CanTP_FCStatusType;
+
 /*
  * Recv from LL
  */
@@ -172,7 +178,7 @@ typedef enum {
 typedef struct{
     uint8 SN; // Sequence Number of consecutive frame
     uint8 BS; // Block Size FC frame
-    uint8 FS; // Status from flow control
+    CanTP_FCStatusType FS; // Status from flow control
     uint8 ST; // Separation Time FF
     CanTPFrameType FrameType;
     uint32 FrameLength;
@@ -407,6 +413,61 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
     return tmp_return;
 }
 
+
+/*
+ * TODO Add brief
+ * Handle Single frame reception
+ */
+static Std_ReturnType CanTp_FlowFrameReceived(PduIdType RxPduId, const PduInfoType *PduInfoPtr, CanPCI_Type *Can_PCI)
+{
+	Std_ReturnType retval = E_NOT_OK;
+	//We received FC so we are transmitting
+	//Did we get correct frame?
+	if((CanTP_State.TxState.CanTp_TxState == CANTP_TX_PROCESSING) || (CanTP_State.TxState.CanTp_TxState == CANTP_RX_SUSPENDED))
+	{
+		/*
+		 * [SWS_CanTp_00057] ⌈If unexpected frames are received, the CanTp module shall
+		 * behave according to the table below. This table specifies the N-PDU handling
+		 * considering the current CanTp internal status (CanTp status). ⌋
+		 *
+		 *  (SRS_Can_01082)
+		 *  It must be understood, that the received N-PDU contains the same address
+		 *  information (N_AI) as the reception or transmission, which may be in progress at the
+		 *  time the N_PDU is received.
+		 */
+		if(CanTP_State.TxState.CanTp_CurrentTxId == RxPduId){
+			switch(Can_PCI->FS){
+				case FS_CTS:
+					CanTP_State.TxState.CanTp_BlocksToFCFrame = Can_PCI->BS;
+					retval = E_OK;
+					//Todo Send consecutive frame
+					break;
+				case FS_WAIT:
+					//TODO restart timer N_Bs
+					//@Justyna
+					retval = E_OK;
+					break;
+				case FS_OVFLW:
+					/*[SWS_CanTp_00309] ⌈If a FC frame is received with the FS set to OVFLW the CanTp module shall
+					 * abort the transmit request and notify the upper layer by calling the callback
+					 * function PduR_CanTpTxConfirmation() with the result E_NOT_OK. ⌋
+					 */
+					PduR_CanTpTxConfirmation(CanTP_State.TxState.CanTp_CurrentTxId, E_NOT_OK);
+					CanTP_MemSet(&CanTP_State.TxState, 0, sizeof(CanTP_State.TxState));
+					CanTP_State.TxState.CanTp_TxState = CANTP_TX_WAIT;
+					retval = E_OK;
+					break;
+				default:
+					PduR_CanTpTxConfirmation(CanTP_State.TxState.CanTp_CurrentTxId, E_NOT_OK);
+					CanTP_MemSet(&CanTP_State.TxState, 0, sizeof(CanTP_State.TxState));
+					CanTP_State.TxState.CanTp_TxState = CANTP_TX_WAIT;
+					retval = E_OK;
+					break;
+			}
+		}
+	}
+	return retval;
+}
 /*
  * TODO Add brief
  * Handle Single frame reception
@@ -426,6 +487,7 @@ static Std_ReturnType CanTp_SingleFrameReceived(PduIdType RxPduId, const PduInfo
 				ULPduInfo.SduLength = Can_PCI->FrameLength;
 				PduR_CanTpCopyRxData(RxPduId, &ULPduInfo, &buffer_size);
 				PduR_CanTpRxIndication (RxPduId, Buf_Status);
+				retval = E_OK;
 			}
 			else{
 				/* [SWS_CanTp_00339] ⌈After the reception of a First Frame or Single Frame,
@@ -435,6 +497,7 @@ static Std_ReturnType CanTp_SingleFrameReceived(PduIdType RxPduId, const PduInfo
 				 *  PduR_CanTpRxIndication() with the result E_NOT_OK. ⌋ ( )
 				 */
 				PduR_CanTpRxIndication (RxPduId, E_NOT_OK);
+				retval = E_NOT_OK;
 			}
 			break;
 		default:
@@ -450,10 +513,11 @@ static Std_ReturnType CanTp_SingleFrameReceived(PduIdType RxPduId, const PduInfo
              * PduR_CanTpStartOfReception()returns BUFREQ_E_OVFL to the CanTp module,
              * the CanTp module shall abort the N-SDU reception.⌋()
             */
+			retval = E_NOT_OK;
 			break;
 	}
 
-	return E_OK;
+	return retval;
 }
 
 /*
@@ -559,8 +623,7 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
         	}
         	CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
         	CanTP_State.RxState.CanTp_CurrentRxId = RxPduId;
-        	CanTP_State.RxState.CanTp_NoOfBlocksTillCTS = (buffer_size/5);
-//        	CanTP_State.RxState.CanTp_NoOfBlocksTillCTS = (buffer_size/7);
+        	CanTP_State.RxState.CanTp_NoOfBlocksTillCTS = (buffer_size/7);
         }
 	}
 	else{
@@ -608,7 +671,7 @@ static Std_ReturnType CanTp_GetPCI(const PduInfoType* PduInfoPtr, CanPCI_Type* C
 			break;
 		case FlowControlFrame:
 			CanPCI->FrameType = FlowControlFrame;
-			CanPCI->FS = PduInfoPtr->SduDataPtr[0] & 0xF;
+			CanPCI->FS = (CanTP_FCStatusType)(PduInfoPtr->SduDataPtr[0] & 0xF);
 			CanPCI->BS = PduInfoPtr->SduDataPtr[1];
 			CanPCI->ST = PduInfoPtr->SduDataPtr[2];
 			ret = E_OK;
@@ -641,7 +704,7 @@ static void CanTp_RxIndicationHandleWaitState(PduIdType RxPduId, const PduInfoTy
 			retval = CanTp_SingleFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case FlowControlFrame:
-			//TODO Handle FC reception
+			retval = CanTp_FlowFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case ConsecutiveFrame:
 			//Do nothing, ignore
@@ -678,10 +741,10 @@ static void CanTp_RxIndicationHandleProcessingState(PduIdType RxPduId, const Pdu
 			PduR_CanTpRxIndication(CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
 			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
 			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
-			//TODO Handle SF reception
+			retval = CanTp_SingleFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case FlowControlFrame:
-			//TODO Handle FC reception
+			retval = CanTp_FlowFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case ConsecutiveFrame:
 			//TODO Handle CF reception
@@ -715,11 +778,11 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
 			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
 			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
-			//TODO Handle SF reception
+			retval = CanTp_SingleFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case FlowControlFrame:
 			//We might receive FC frame
-			//TODO Handle FC reception
+			retval = CanTp_FlowFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case ConsecutiveFrame:
 			//We should not receive CF at this time as we do not have enough buffer space
