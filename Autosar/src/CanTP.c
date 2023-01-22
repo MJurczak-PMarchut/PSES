@@ -146,6 +146,7 @@ void CanTp_Init (const CanTp_ConfigType* CfgPtr)
 	//And tx and rx is waiting
 	CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
 	CanTP_State.TxState.CanTp_TxState = CANTP_TX_WAIT;
+	//Todo @Justyna Init timerów
 
 }
 
@@ -791,4 +792,14 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
     		//Report error
     		break;
     }
+}
+
+/*------------------------------------------------------------------------------------------------*/
+/* global scheduled function definitions.                                                         */
+/*------------------------------------------------------------------------------------------------*/
+
+void CanTp_MainFunction(void)
+{
+	//TODO Do stuff here
+	//@Justyna Inkrementacja Timerów i sprawdzenie ich stanów (szkielet drzewka if-else)
 }
