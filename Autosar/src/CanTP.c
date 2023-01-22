@@ -187,7 +187,7 @@ typedef struct{
 
 static CanTP_InternalStateType CanTP_State;
 
-static void* CanTP_MemSet(void* destination, int value, size_t num)
+static void* CanTP_MemSet(void* destination, int value, uint64 num)
 {
 	uint8* dest = destination;
 	for(uint64 u64Iter; u64Iter < num; u64Iter++)
