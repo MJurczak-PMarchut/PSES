@@ -418,6 +418,22 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
  * TODO Add brief
  * Handle Single frame reception
  */
+static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const PduInfoType *PduInfoPtr, CanPCI_Type *Can_PCI)
+{
+    PduLengthType buffer_size;      // use when calling PduR callbacks
+    BufReq_ReturnType Buf_Status;   // use when calling PduR callbacks
+    PduInfoType Extracted_Data;
+    uint16 current_block_size;
+    Std_ReturnType retval = E_NOT_OK;
+
+    //@Justyna
+    return retval;
+}
+
+/*
+ * TODO Add brief
+ * Handle Single frame reception
+ */
 static Std_ReturnType CanTp_FlowFrameReceived(PduIdType RxPduId, const PduInfoType *PduInfoPtr, CanPCI_Type *Can_PCI)
 {
 	Std_ReturnType retval = E_NOT_OK;
