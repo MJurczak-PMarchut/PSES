@@ -432,7 +432,7 @@ static void CanTp_RxIndicationHandleWaitState(PduIdType RxPduId, const PduInfoTy
 	switch(Can_PCI->FrameType)
 	{
 		case FirstFrame:
-			retval = CanTp_FirstFrameReceived(RxPduId, PduInfoPtr, &Can_PCI);
+			retval = CanTp_FirstFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case SingleFrame:
 			//TODO Handle SF reception
@@ -467,7 +467,7 @@ static void CanTp_RxIndicationHandleProcessingState(PduIdType RxPduId, const Pdu
 			PduR_CanTpRxIndication(CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
 			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
 			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
-			retval = CanTp_FirstFrameReceived(RxPduId, PduInfoPtr, &Can_PCI);
+			retval = CanTp_FirstFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case SingleFrame:
 			PduR_CanTpRxIndication(CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
@@ -502,7 +502,7 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
 			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
 			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
-			retval = CanTp_FirstFrameReceived(RxPduId, PduInfoPtr, &Can_PCI);
+			retval = CanTp_FirstFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case SingleFrame:
 			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
