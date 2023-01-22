@@ -175,7 +175,7 @@ typedef struct{
     uint8 FS; // Status from flow control
     uint8 ST; // Separation Time FF
     CanTPFrameType FrameType;
-    uint32 FrameLenght;
+    uint32 FrameLength;
 } CanPCI_Type;
 
 
@@ -430,7 +430,7 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 	 *incoming data with PduR_CanTpStartOfReception callback.
 	 *
 	 */
-	Buf_Status = PduR_CanTpStartOfReception(RxPduId, PduInfoPtr, Can_PCI->FrameLenght, &buffer_size);
+	Buf_Status = PduR_CanTpStartOfReception(RxPduId, PduInfoPtr, Can_PCI->FrameLength, &buffer_size);
     /*
     [SWS_CanTp_00318] ⌈After the reception of a First Frame, if the function PduR_CanTpStartOfReception()returns BUFREQ_E_OVFL to the CanTp module,
     the CanTp module shall send a Flow Control N-PDU with overflow status (FC(OVFLW)) and abort the N-SDU reception. */
@@ -451,7 +451,7 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 		retval = E_NOT_OK;
 	}
 	else if(Buf_Status == BUFREQ_OK){
-        CanTP_State.RxState.CanTp_MessageLength = Can_PCI->FrameLenght;
+        CanTP_State.RxState.CanTp_MessageLength = Can_PCI->FrameLength;
         CanTP_State.RxState.CanTp_CurrentRxId = RxPduId;
         /*
          * [SWS_CanTp_00339] ⌈After the reception of a First Frame or Single Frame, if the
@@ -488,10 +488,62 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 	return retval;
 }
 
+/*
+ * @Brief
+ * Fill the CanPCI_Type with info decoded from frame
+ */
 static Std_ReturnType CanTp_GetPCI(const PduInfoType* PduInfoPtr, CanPCI_Type* CanPCI)
 {
-	//TODO Fill this
-	return E_NOT_OK;
+	Std_ReturnType ret = E_NOT_OK;
+	CanTP_MemSet(CanPCI, 0, sizeof(CanPCI));
+	switch((PduInfoPtr->SduDataPtr[0]) >> 4)
+	{
+		case FirstFrame:
+			CanPCI->FrameType = FirstFrame;
+			if(((PduInfoPtr->SduDataPtr[0] & 0xF) == 0x00) && (PduInfoPtr->SduDataPtr[1] == 0x00)){
+				//more than 4096 bytes
+				CanPCI->FrameLength = PduInfoPtr->SduDataPtr[2];
+				CanPCI->FrameLength = ((CanPCI->FrameLength << 8) | PduInfoPtr->SduDataPtr[3]);
+				CanPCI->FrameLength = ((CanPCI->FrameLength << 8) | PduInfoPtr->SduDataPtr[4]);
+				CanPCI->FrameLength = ((CanPCI->FrameLength << 8) | PduInfoPtr->SduDataPtr[5]);
+			}
+			else
+			{
+				CanPCI->FrameLength = PduInfoPtr->SduDataPtr[0] & 0xF;
+				CanPCI->FrameLength = ((CanPCI->FrameLength << 8) | PduInfoPtr->SduDataPtr[1]);
+			}
+			ret = E_OK;
+			break;
+		case SingleFrame:
+			CanPCI->FrameType = SingleFrame;
+			if((PduInfoPtr->SduDataPtr[0] & 0xF) == 0x00){
+				//CAN FD only, not really needing this, not going to implement this further
+				CanPCI->FrameLength = (uint32)PduInfoPtr->SduDataPtr[1];
+			}
+			else{
+				CanPCI->FrameLength = (uint32)(PduInfoPtr->SduDataPtr[0] & 0xF);
+			}
+			ret = E_OK;
+			break;
+		case FlowControlFrame:
+			CanPCI->FrameType = FlowControlFrame;
+			CanPCI->FS = PduInfoPtr->SduDataPtr[0] & 0xF;
+			CanPCI->BS = PduInfoPtr->SduDataPtr[1];
+			CanPCI->ST = PduInfoPtr->SduDataPtr[2];
+			ret = E_OK;
+			break;
+		case ConsecutiveFrame:
+			CanPCI->FrameType = ConsecutiveFrame;
+			CanPCI->SN = PduInfoPtr->SduDataPtr[0] & 0xF;
+			ret = E_OK;
+			break;
+		default:
+			//put garbage data into frame type (forcing default in switch-case)
+			CanPCI->FrameType = (CanTPFrameType)-1;
+			ret = E_NOT_OK;
+			break;
+	}
+	return ret;
 }
 
 static void CanTp_RxIndicationHandleWaitState(PduIdType RxPduId, const PduInfoType* PduInfoPtr, CanPCI_Type *Can_PCI)
