@@ -11,16 +11,16 @@
 
 #include "catch.hpp"
 #include "test1.hpp"
+#include "acutest.h"
+#include "UT_CanTP.hpp"
+#include "UT_CanTp_Timers.hpp"
 
-using namespace std;
 
-TEST_CASE( "Test virtual method", "[virtual_method]" )
-{
-	REQUIRE(test_return1() == 1);
-	REQUIRE(test_return2() == 1);
-}
-
-//int main() {
-//	int result = Catch::Session().run();
-//	return result;
-//}
+TEST_LIST = {
+    { "Test of CanTp_Init", test_CanTp_Init },
+	{ "Test of CanTp_GetVersionInfo", test_CanTp_GetVersionInfo },
+    { "Test of CanTp_TStart", test_CanTp_TStart },
+	{ "Test of CanTp_Timer_Incr", test_CanTp_Timer_Incr },
+	{ "Test of CanTp_Timer_Timeout", test_CanTp_Timer_Timeout },
+    { NULL, NULL }
+};
