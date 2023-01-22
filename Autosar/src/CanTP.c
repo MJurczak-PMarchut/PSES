@@ -407,6 +407,54 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
     return tmp_return;
 }
 
+/*
+ * TODO Add brief
+ * Handle Single frame reception
+ */
+static Std_ReturnType CanTp_SingleFrameReceived(PduIdType RxPduId, const PduInfoType *PduInfoPtr, CanPCI_Type *Can_PCI)
+{
+	BufReq_ReturnType Buf_Status;
+	PduLengthType buffer_size;
+	Std_ReturnType retval = E_NOT_OK;
+	PduInfoType ULPduInfo;
+	Buf_Status = PduR_CanTpStartOfReception(RxPduId, &ULPduInfo, Can_PCI->FrameLength, &buffer_size);
+	switch(Buf_Status)
+	{
+		case BUFREQ_OK:
+			if(buffer_size >= Can_PCI->FrameLength){
+				ULPduInfo.SduDataPtr = PduInfoPtr->SduDataPtr + 1;
+				ULPduInfo.SduLength = Can_PCI->FrameLength;
+				PduR_CanTpCopyRxData(RxPduId, &ULPduInfo, &buffer_size);
+				PduR_CanTpRxIndication (RxPduId, Buf_Status);
+			}
+			else{
+				/* [SWS_CanTp_00339] ⌈After the reception of a First Frame or Single Frame,
+				 * if the function PduR_CanTpStartOfReception() returns BUFREQ_OK with a
+				 * smaller available buffer size than needed for the already received data,
+				 * the CanTp module shall abort the reception of the N-SDU and call
+				 *  PduR_CanTpRxIndication() with the result E_NOT_OK. ⌋ ( )
+				 */
+				PduR_CanTpRxIndication (RxPduId, E_NOT_OK);
+			}
+			break;
+		default:
+            /* [SWS_CanTp_00081] ⌈After the reception of a First Frame or Single Frame,
+             *  if the function PduR_CanTpStartOfReception()returns BUFREQ_E_NOT_OK to
+             *  the CanTp module, the CanTp module shall abort the reception of this N-SDU.
+             *  No Flow Control will be sent and PduR_CanTpRxIndication() will not be called
+             *  in this case. ⌋ ( )
+            */
+
+            /*
+             * [SWS_CanTp_00353]⌈After the reception of a Single Frame, if the function
+             * PduR_CanTpStartOfReception()returns BUFREQ_E_OVFL to the CanTp module,
+             * the CanTp module shall abort the N-SDU reception.⌋()
+            */
+			break;
+	}
+
+	return E_OK;
+}
 
 /*
  * TODO Add brief
@@ -432,12 +480,12 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 	 *
 	 */
 	if(Can_PCI->FrameLength < 4096){
-		ULPduInfo.SduDataPtr = PduInfoPtr->SduDataPtr + 3;
-		ULPduInfo.SduLength = 4;
+		ULPduInfo.SduDataPtr = PduInfoPtr->SduDataPtr + 2;
+		ULPduInfo.SduLength = PduInfoPtr->SduLength;
 	}
 	else{
-		ULPduInfo.SduDataPtr = PduInfoPtr->SduDataPtr + 7;
-		ULPduInfo.SduLength = 0;
+		ULPduInfo.SduDataPtr = PduInfoPtr->SduDataPtr + 6;
+		ULPduInfo.SduLength = PduInfoPtr->SduLength;
 	}
 	Buf_Status = PduR_CanTpStartOfReception(RxPduId, &ULPduInfo, Can_PCI->FrameLength, &buffer_size);
     /*
@@ -475,33 +523,31 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 		 * PduR_CanTpStartOfReception() returns BUFREQ_OK with a smaller available
 		 * buffer size than needed for the next block, the CanTp module shall start the timer N_Br.⌋ ( )
 		 */
-        // Every consecutive frame will have 5 bytes
 		//
         // so if less than 4096
-        if(Can_PCI->FrameLength < 4096){
-			if(buffer_size < 4){
-				//[SWS_CanTp_00339]
-		        // We need at least 4 bytes for FF if SDU length is < 4096
-				PduR_CanTpRxIndication(CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
-				retval = E_NOT_OK;
+		if(buffer_size < PduInfoPtr->SduLength){
+			//[SWS_CanTp_00339]
+			// We need at least SduLength bytes for FF if SDU length is < 4096
+			PduR_CanTpRxIndication(CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
+			retval = E_NOT_OK;
+		}
+		else{
+			//[SWS_CanTp_00082] for the next block we need SduLength + 7
+			if(buffer_size < PduInfoPtr->SduLength + 7)
+			//if(buffer_size < 14)
+			{
+				/*  TODO Send FC(WAIT) to wait for buffer
+				 *  @Justyna start N_Br
+				 */
 			}
 			else{
-				//[SWS_CanTp_00082] for the next block we need 4 + 5
-				if(buffer_size < 9)
-				{
-					/*  TODO Send FC(WAIT) to wait for buffer
-					 *  @Justyna start N_Br
-					 */
-				}
-				else{
-					/*
-					 * TODO Send FC(CTS) to wait for buffer
-					 */
-				}
-
-				retval = E_OK;
+				/*
+				 * TODO Send FC(CTS) to wait for buffer
+				 */
 			}
-        }
+
+			retval = E_OK;
+		}
         if(retval == E_OK)
         {
         	//TODO I assume we need to copy the data to PduR (basis: SWS_CanTp_00339)
@@ -514,6 +560,7 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
         	CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
         	CanTP_State.RxState.CanTp_CurrentRxId = RxPduId;
         	CanTP_State.RxState.CanTp_NoOfBlocksTillCTS = (buffer_size/5);
+//        	CanTP_State.RxState.CanTp_NoOfBlocksTillCTS = (buffer_size/7);
         }
 	}
 	else{
@@ -591,7 +638,7 @@ static void CanTp_RxIndicationHandleWaitState(PduIdType RxPduId, const PduInfoTy
 			retval = CanTp_FirstFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case SingleFrame:
-			//TODO Handle SF reception
+			retval = CanTp_SingleFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case FlowControlFrame:
 			//TODO Handle FC reception
