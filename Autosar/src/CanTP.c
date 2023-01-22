@@ -409,7 +409,8 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 
 static Std_ReturnType CanTp_GetPCI(const PduInfoType* PduInfoPtr, CanPCI_Type* CanPCI)
 {
-
+	//TODO Fill this
+	return E_NOT_OK;
 }
 
 static void CanTp_RxIndicationHandleWaitState(PduIdType RxPduId, const PduInfoType* PduInfoPtr, CanPCI_Type *Can_PCI)
@@ -514,7 +515,7 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
     	//We can report error here, nothing to do
     	return;
     }
-    CanTp_GetPCI(&PduInfoPtr, &Can_PCI);
+    CanTp_GetPCI(PduInfoPtr, &Can_PCI);
     switch(CanTP_State.RxState.CanTp_RxState)
     {
     	case CANTP_RX_WAIT:
