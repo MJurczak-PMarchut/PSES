@@ -49,7 +49,7 @@ typedef enum {
 typedef enum {
     CANTP_TX_WAIT = 0x00u,
     CANTP_TX_PROCESSING,
-	CANTP_RX_SUSPENDED
+	CANTP_TX_SUSPENDED
 } CanTp_TxState_Type;
 
 typedef struct
@@ -181,10 +181,20 @@ typedef struct{
 
 static CanTP_InternalStateType CanTP_State;
 
+static void* CanTP_MemSet(void* destination, int value, size_t num)
+{
+	uint8* dest = destination;
+	for(uint64 u64Iter; u64Iter < num; u64Iter++)
+	{
+		dest[u64Iter] = (uint8)value;
+	}
+	return destination;
+}
+
 void CanTp_Init (const CanTp_ConfigType* CfgPtr)
 {
 	//Init all to 0
-	memcpy(&CanTP_State, 0, sizeof(CanTP_State));
+	CanTP_MemSet(&CanTP_State, 0, sizeof(CanTP_State));
 	//CanTP in on state
 	CanTP_State.CanTP_State = CANTP_ON;
 	//And tx and rx is waiting
@@ -397,6 +407,11 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
     return tmp_return;
 }
 
+static Std_ReturnType CanTp_GetPCI(const PduInfoType* PduInfoPtr, CanPCI_Type* CanPCI)
+{
+
+}
+
 static void CanTp_RxIndicationHandleWaitState(PduIdType RxPduId, const PduInfoType* PduInfoPtr, CanPCI_Type *Can_PCI)
 {
 	// In wait state we should only receive start of communication or flow control frame if we are waiting for it
@@ -431,14 +446,14 @@ static void CanTp_RxIndicationHandleProcessingState(PduIdType RxPduId, const Pdu
 	switch(Can_PCI->FrameType)
 	{
 		case FirstFrame:
-			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
-			memcpy(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+			PduR_CanTpRxIndication(CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
+			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
 			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
 			//TODO Handle FirstFrame reception
 			break;
 		case SingleFrame:
-			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
-			memcpy(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+			PduR_CanTpRxIndication(CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
+			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
 			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
 			//TODO Handle SF reception
 			break;
@@ -462,13 +477,13 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 	{
 		case FirstFrame:
 			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
-			memcpy(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
 			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
 			//TODO Handle FirstFrame reception
 			break;
 		case SingleFrame:
 			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
-			memcpy(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
 			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
 			//TODO Handle SF reception
 			break;
@@ -480,7 +495,7 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 			//We should not receive CF at this time as we do not have enough buffer space
 			//We reset communication and report an error
 			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
-			memcpy(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
 			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
 			break;
 		default:
@@ -489,7 +504,7 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 	}
 }
 
-void CanTp_RxIndication ( PduIdType RxPduId, const PduInfoType* PduInfoPtr)
+void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
 {
 
     CanPCI_Type Can_PCI;
@@ -499,7 +514,7 @@ void CanTp_RxIndication ( PduIdType RxPduId, const PduInfoType* PduInfoPtr)
     	//We can report error here, nothing to do
     	return;
     }
-    CanTp_GetPCI(PduInfoPtr, &Can_PCI);
+    CanTp_GetPCI(&PduInfoPtr, &Can_PCI);
     switch(CanTP_State.RxState.CanTp_RxState)
     {
     	case CANTP_RX_WAIT:
