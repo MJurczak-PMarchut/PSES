@@ -20,7 +20,7 @@ TEST_CASE( "Test virtual method", "[virtual_method]" )
 	REQUIRE(test_return2() == 1);
 }
 
-int main() {
-	int result = Catch::Session().run();
-	return result;
-}
+//int main() {
+//	int result = Catch::Session().run();
+//	return result;
+//}

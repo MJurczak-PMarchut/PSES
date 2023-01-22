@@ -59,62 +59,6 @@ typedef struct
     PduLengthType rmng;
 } CanTp_NSduBufferType;
 
-typedef struct
-{
-    const CanTp_RxNSduType *cfg;
-    CanTp_NSduBufferType buf;
-    uint8 meta_data_lower[0x04u];
-    uint8 meta_data_upper[0x04u];
-    CanTp_NSaType saved_n_sa;
-    CanTp_NTaType saved_n_ta;
-    CanTp_NAeType saved_n_ae;
-    boolean has_meta_data;
-    CanTp_FlowStatusType fs;
-    uint32 st_min;
-    uint8 bs;
-    uint8 sn;
-    uint16 wft_max;
-    PduInfoType can_if_pdu_info;
-    PduInfoType pdu_r_pdu_info;
-    struct
-    {
-    	CanTp_RxState_Type taskState;
-        CanTp_FrameStateType state;
-        /**
-         * @brief structure containing all parameters accessible via @ref CanTp_ReadParameter/@ref
-         * CanTp_ChangeParameter.
-         */
-        struct
-        {
-            uint32 st_min;
-            uint8 bs;
-        } m_param;
-    } shared;
-} CanTp_RxConnectionType;
-
-typedef struct
-{
-    const CanTp_TxNSduType *cfg;
-    CanTp_NSduBufferType buf;
-    uint8 meta_data[0x04u];
-    CanTp_NSaType saved_n_sa;
-    CanTp_NTaType saved_n_ta;
-    CanTp_NAeType saved_n_ae;
-    boolean has_meta_data;
-    CanTp_FlowStatusType fs;
-    uint32 target_st_min;
-    uint32 st_min;
-    uint16 bs;
-    uint8 sn;
-    PduInfoType can_if_pdu_info;
-    CanTp_TxState_Type taskState;
-    struct
-    {
-        CanTp_FrameStateType state;
-        uint32 flag;
-    } shared;
-} CanTp_TxConnectionType;
-
 // struct of rx state variables
 typedef struct{
     uint16 CanTp_MessageLength;
@@ -133,23 +77,6 @@ typedef struct{
     uint16 CanTp_BlocksToFCFrame;
     uint16 CanTp_MsgLegth;
 } CanTp_TxStateVariablesType;
-
-typedef struct
-{
-    CanTp_RxConnectionType rx;
-    CanTp_TxConnectionType tx;
-    uint32 n[0x06u];
-    uint8_least dir;
-    uint32 t_flag;
-} CanTp_NSduType;
-
-// typedef struct
-// {
-//     CanTp_NSduType sdu[CANTP_MAX_NUM_OF_N_SDU];
-// } CanTp_ChannelRtType;
-//
-
-// static CanTp_ChannelRtType CanTp_Rt[CANTP_MAX_NUM_OF_CHANNEL];
 
 typedef struct{
 	CanTp_RxStateVariablesType 	RxState;
@@ -189,8 +116,8 @@ static CanTP_InternalStateType CanTP_State;
 
 static void* CanTP_MemSet(void* destination, int value, uint64 num)
 {
-	uint8* dest = destination;
-	for(uint64 u64Iter; u64Iter < num; u64Iter++)
+	uint8* dest = (uint8*)destination;
+	for(uint64 u64Iter = 0; u64Iter < num; u64Iter++)
 	{
 		dest[u64Iter] = (uint8)value;
 	}
@@ -228,12 +155,11 @@ void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo)
 Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 {
 	Std_ReturnType ret = E_NOT_OK;
-	CanTp_TxNSduType *nsdu;
 
-	if((CanTP_State.CanTP_State == CANTP_ON))
+	if(CanTP_State.CanTP_State == CANTP_ON)
 	{
 		PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
-		// nsdu->tx.taskState = CANTP_TX_WAIT;
+		CanTP_State.TxState.CanTp_TxState = CANTP_TX_WAIT;
 		ret = E_OK;
 	}
 	return ret;
@@ -241,14 +167,22 @@ Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 
 void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
 {
-	CanTp_NSduType *nsdu;
-	if(E_OK)
+	CanTp_TxNSduType *nsdu;
+	if(CanTP_State.CanTP_State == CANTP_ON)
 	{
-// ToDo
-	}
-	else
-	{
-		CanTp_CancelTransmit(TxPduId);
+		//ToDo reset timer N_As
+		if(result == E_OK)
+		{
+	// ToDo
+		}
+		else if(result == E_NOT_OK)
+		{
+			CanTp_CancelTransmit(TxPduId);
+		}
+		else
+		{
+			// incorrect behaviour
+		}
 	}
 }
 
@@ -287,11 +221,11 @@ Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint
 
 Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
 {
-	CanTp_RxNSduType *nsdu;
 	Std_ReturnType ret = E_NOT_OK;
 
 	if(CanTP_State.CanTP_State == CANTP_ON)
 	{
+		CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
 		PduR_CanTpRxConfirmation(RxPduId, E_NOT_OK);
 	}
 
