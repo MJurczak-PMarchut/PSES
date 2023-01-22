@@ -418,6 +418,7 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 	BufReq_ReturnType Buf_Status;
 	PduLengthType buffer_size;
 	Std_ReturnType retval = E_NOT_OK;
+	PduInfoType ULPduInfo;
 	/*
 	 * [SWS_CanTp_00166] ⌈At the reception of a FF or last CF of a block, the CanTp
 	 * module shall start a time-out N_Br before calling PduR_CanTpStartOfReception or PduR_CanTpCopyRxData. ⌋ ( )
@@ -430,11 +431,19 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 	 *incoming data with PduR_CanTpStartOfReception callback.
 	 *
 	 */
-	Buf_Status = PduR_CanTpStartOfReception(RxPduId, PduInfoPtr, Can_PCI->FrameLength, &buffer_size);
+	if(Can_PCI->FrameLength < 4096){
+		ULPduInfo.SduDataPtr = PduInfoPtr->SduDataPtr + 3;
+		ULPduInfo.SduLength = 4;
+	}
+	else{
+		ULPduInfo.SduDataPtr = PduInfoPtr->SduDataPtr + 7;
+		ULPduInfo.SduLength = 0;
+	}
+	Buf_Status = PduR_CanTpStartOfReception(RxPduId, &ULPduInfo, Can_PCI->FrameLength, &buffer_size);
     /*
     [SWS_CanTp_00318] ⌈After the reception of a First Frame, if the function PduR_CanTpStartOfReception()returns BUFREQ_E_OVFL to the CanTp module,
     the CanTp module shall send a Flow Control N-PDU with overflow status (FC(OVFLW)) and abort the N-SDU reception. */
-	if(Buf_Status == BUFREQ_E_OVFL){
+	if(Buf_Status == BUFREQ_E_OVFL){ //Maybe change to switch-case?
 		/*
 		 * [SWS_CanTp_00318] ⌈After the reception of a First Frame, if the function
 		 * PduR_CanTpStartOfReception()returns BUFREQ_E_OVFL to the CanTp module,
@@ -461,26 +470,51 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
          * the result E_NOT_OK. ⌋ ( )
          */
 
-
-        //We received FF so 7 bytes
-        if(buffer_size < 7){
-        	PduR_CanTpRxIndication (CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
-        	retval = E_NOT_OK;
-        }
-
 		/*
 		 * [SWS_CanTp_00082] ⌈After the reception of a First Frame, if the function
 		 * PduR_CanTpStartOfReception() returns BUFREQ_OK with a smaller available
 		 * buffer size than needed for the next block, the CanTp module shall start the timer N_Br.⌋ ( )
 		 */
-		//  we need additional 7 bytes for CF
-		if(buffer_size < 14){
-			//TODO Send FC(WAIT) to wait for buffer
-	        //TODO @Justyna start N_Br
-		}
+        // Every consecutive frame will have 5 bytes
+		//
+        // so if less than 4096
+        if(Can_PCI->FrameLength < 4096){
+			if(buffer_size < 4){
+				//[SWS_CanTp_00339]
+		        // We need at least 4 bytes for FF if SDU length is < 4096
+				PduR_CanTpRxIndication(CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
+				retval = E_NOT_OK;
+			}
+			else{
+				//[SWS_CanTp_00082] for the next block we need 4 + 5
+				if(buffer_size < 9)
+				{
+					/*  TODO Send FC(WAIT) to wait for buffer
+					 *  @Justyna start N_Br
+					 */
+				}
+				else{
+					/*
+					 * TODO Send FC(CTS) to wait for buffer
+					 */
+				}
 
-		CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
-		retval = E_OK;
+				retval = E_OK;
+			}
+        }
+        if(retval == E_OK)
+        {
+        	//TODO I assume we need to copy the data to PduR (basis: SWS_CanTp_00339)
+        	if(Can_PCI->FrameLength < 4096){
+				PduR_CanTpCopyRxData(RxPduId, &ULPduInfo, &buffer_size);
+        	}
+        	else{
+        		//Nothing to copy
+        	}
+        	CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+        	CanTP_State.RxState.CanTp_CurrentRxId = RxPduId;
+        	CanTP_State.RxState.CanTp_NoOfBlocksTillCTS = (buffer_size/5);
+        }
 	}
 	else{
 		retval = E_NOT_OK;
