@@ -116,8 +116,8 @@ static CanTP_InternalStateType CanTP_State;
 
 static void* CanTP_MemSet(void* destination, int value, uint64 num)
 {
-	uint8* dest = destination;
-	for(uint64 u64Iter; u64Iter < num; u64Iter++)
+	uint8* dest = (uint8*)destination;
+	for(uint64 u64Iter = 0; u64Iter < num; u64Iter++)
 	{
 		dest[u64Iter] = (uint8)value;
 	}
