@@ -20,16 +20,20 @@ void test_CanTp_Timer_Incr(void)
 {
 	CanTp_Timer_type test_timer1 = {TIMER_NOT_ACTIVE, 4, 10};
 	CanTp_Timer_type test_timer2 = {TIMER_ACTIVE, 4, 10};
+	CanTp_Timer_type test_timer3 = {TIMER_ACTIVE, UINT32_MAX, 10};
 	Std_ReturnType ret = E_OK;
 
 	ret = CanTp_Timer_Incr(&test_timer1);
 	TEST_CHECK(ret == E_NOT_OK);
 	TEST_CHECK(test_timer1.counter == 4);
 
-
 	ret = CanTp_Timer_Incr(&test_timer2);
 	TEST_CHECK(ret == E_OK);
 	TEST_CHECK(test_timer2.counter == 5);
+
+	ret = CanTp_Timer_Incr(&test_timer3);
+	TEST_CHECK(ret == E_NOT_OK);
+	TEST_CHECK(test_timer3.counter == UINT32_MAX);
 }
 
 void test_CanTp_Timer_Timeout(void)
