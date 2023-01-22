@@ -42,12 +42,14 @@ typedef enum
 typedef enum {
     CANTP_RX_WAIT = 0x00u,
     CANTP_RX_PROCESSING,
+	CANTP_RX_SUSPENDED
 } CanTp_RxState_Type;
 
 
 typedef enum {
     CANTP_TX_WAIT = 0x00u,
     CANTP_TX_PROCESSING,
+	CANTP_RX_SUSPENDED
 } CanTp_TxState_Type;
 
 typedef struct
@@ -154,6 +156,27 @@ typedef struct{
 	CanTp_TxStateVariablesType	TxState;
 	CanTp_StateType				CanTP_State;
 } CanTP_InternalStateType;
+
+
+/*
+ * Recv from LL
+ */
+
+typedef enum {
+    SingleFrame = 0,
+    FirstFrame,
+    ConsecutiveFrame,
+    FlowControlFrame,
+    } CanTPFrameType;
+
+typedef struct{
+    uint8 SN; // Sequence Nubmer of consecutive frame
+    uint8 BS; // Block Size FC frame
+    uint8 FS; // Status from flow control
+    uint8 ST; // Sepsration Time FF
+    CanTPFrameType FrameType;
+    uint32 FrameLenght;
+} CanPCI_Type;
 
 
 static CanTP_InternalStateType CanTP_State;
@@ -372,4 +395,124 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 
 
     return tmp_return;
+}
+
+static void CanTp_RxIndicationHandleWaitState(PduIdType RxPduId, const PduInfoType* PduInfoPtr, CanPCI_Type *Can_PCI)
+{
+	// In wait state we should only receive start of communication or flow control frame if we are waiting for it
+	// disregard CF
+	switch(Can_PCI->FrameType)
+	{
+		case FirstFrame:
+			//TODO Handle FirstFrame reception
+			break;
+		case SingleFrame:
+			//TODO Handle SF reception
+			break;
+		case FlowControlFrame:
+			//TODO Handle FC reception
+			break;
+		case ConsecutiveFrame:
+			//Do nothing, ignore
+			break;
+		default:
+			//Error to be reported or ignored
+			break;
+	}
+}
+
+static void CanTp_RxIndicationHandleProcessingState(PduIdType RxPduId, const PduInfoType* PduInfoPtr, CanPCI_Type *Can_PCI)
+{
+	/*
+	 * In processing state we already have received SF and FF so we restart communication if we receive another one
+	 *
+	 *
+	 */
+	switch(Can_PCI->FrameType)
+	{
+		case FirstFrame:
+			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
+			memcpy(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+			//TODO Handle FirstFrame reception
+			break;
+		case SingleFrame:
+			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
+			memcpy(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+			//TODO Handle SF reception
+			break;
+		case FlowControlFrame:
+			//TODO Handle FC reception
+			break;
+		case ConsecutiveFrame:
+			//TODO Handle CF reception
+			break;
+		default:
+			//Error to be reported or ignored
+			break;
+	}
+}
+
+static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduInfoType* PduInfoPtr, CanPCI_Type *Can_PCI)
+{
+	//Same as processing (N_Br timer expired and not enough buffer space)
+	//FF and SF cause restart of the reception
+	switch(Can_PCI->FrameType)
+	{
+		case FirstFrame:
+			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
+			memcpy(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+			//TODO Handle FirstFrame reception
+			break;
+		case SingleFrame:
+			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
+			memcpy(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+			//TODO Handle SF reception
+			break;
+		case FlowControlFrame:
+			//We might receive FC frame
+			//TODO Handle FC reception
+			break;
+		case ConsecutiveFrame:
+			//We should not receive CF at this time as we do not have enough buffer space
+			//We reset communication and report an error
+			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
+			memcpy(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+			break;
+		default:
+			//Error to be reported or ignored
+			break;
+	}
+}
+
+void CanTp_RxIndication ( PduIdType RxPduId, const PduInfoType* PduInfoPtr)
+{
+
+    CanPCI_Type Can_PCI;
+    PduInfoType Extracted_Data;
+    if(CanTP_State.CanTP_State == CANTP_OFF)
+    {
+    	//We can report error here, nothing to do
+    	return;
+    }
+    CanTp_GetPCI(PduInfoPtr, &Can_PCI);
+    switch(CanTP_State.RxState.CanTp_RxState)
+    {
+    	case CANTP_RX_WAIT:
+    		CanTp_RxIndicationHandleWaitState(RxPduId, PduInfoPtr, &Can_PCI);
+    		break;
+    	case CANTP_RX_PROCESSING:
+    		CanTp_RxIndicationHandleProcessingState(RxPduId, PduInfoPtr, &Can_PCI);
+    		break;
+    	case CANTP_RX_SUSPENDED:
+    		CanTp_RxIndicationHandleSuspendedState(RxPduId, PduInfoPtr, &Can_PCI);
+    		break;
+    	default:
+    		//Report error
+    		break;
+    }
 }
