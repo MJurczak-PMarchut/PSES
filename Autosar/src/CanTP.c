@@ -509,7 +509,6 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
 {
 
     CanPCI_Type Can_PCI;
-    PduInfoType Extracted_Data;
     if(CanTP_State.CanTP_State == CANTP_OFF)
     {
     	//We can report error here, nothing to do
