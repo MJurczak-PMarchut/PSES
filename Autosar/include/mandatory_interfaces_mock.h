@@ -14,5 +14,6 @@ void PduR_CanTpRxConfirmation(PduIdType  TxPduId, Std_ReturnType result) {};
 void PduR_CanTpTxConfirmation(PduIdType  TxPduId, Std_ReturnType result) {};
 BufReq_ReturnType PduR_CanTpCopyTxData(PduIdType id, PduInfoType* info, RetryInfoType* retry, PduLengthType* availableDataPtr ){};
 void PduR_CanTpRxIndication ( PduIdType id, Std_ReturnType result ){};
+BufReq_ReturnType PduR_CanTpStartOfReception(id, info, TpSduLength, bufferSizePtr){};
 
 #endif /* INCLUDE_MANDATORY_INTERFACES_MOCK_H_ */
