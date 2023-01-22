@@ -198,19 +198,6 @@ typedef struct{
 } CanPCI_Type;
 
 
-<<<<<<< HEAD
-//TIMERY!!!!!!!!!!!!!
-CanTp_Timer_type N_Ar = {TIMER_NOT_ACTIVE, 0, N_AR_TIMEOUT_VAL};
-CanTp_Timer_type N_Br = {TIMER_NOT_ACTIVE, 0, N_BR_TIMEOUT_VAL};
-CanTp_Timer_type N_Cr = {TIMER_NOT_ACTIVE, 0, N_CR_TIMEOUT_VAL};
-
-CanTp_Timer_type N_As = {TIMER_NOT_ACTIVE, 0, N_AS_TIMEOUT_VAL};
-CanTp_Timer_type N_Bs = {TIMER_NOT_ACTIVE, 0, N_BS_TIMEOUT_VAL};
-CanTp_Timer_type N_Cs = {TIMER_NOT_ACTIVE, 0, N_CS_TIMEOUT_VAL};
-//KONIEC TIMEROW!!!!!!!!!!!!!!!!!!!
-
-static Std_ReturnType CanTp_GetNSduFromPduId(PduIdType pduId, CanTp_NSduType **pNSdu);
-=======
 static CanTP_InternalStateType CanTP_State;
 
 static void* CanTP_MemSet(void* destination, int value, uint64 num)
@@ -222,7 +209,6 @@ static void* CanTP_MemSet(void* destination, int value, uint64 num)
 	}
 	return destination;
 }
->>>>>>> acea4e04990bd7c26a25924fb35c4e65b177dcf5
 
 void CanTp_Init (const CanTp_ConfigType* CfgPtr)
 {
