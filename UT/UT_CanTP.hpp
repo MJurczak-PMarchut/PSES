@@ -13,5 +13,7 @@ void test_CanTp_Init(void);
 
 void test_CanTp_GetVersionInfo(void);
 
+void test_CanTp_GetPCI(void);
+
 
 #endif /* UT_CANTP_HPP_ */

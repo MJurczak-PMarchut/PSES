@@ -17,8 +17,11 @@
 
 
 TEST_LIST = {
+	// CanTP tests
     { "Test of CanTp_Init", test_CanTp_Init },
 	{ "Test of CanTp_GetVersionInfo", test_CanTp_GetVersionInfo },
+	{ "Test of CanTp_GetPCI", test_CanTp_GetPCI },
+	// CanTp_Timers tests
     { "Test of CanTp_TStart", test_CanTp_TStart },
 	{ "Test of CanTp_Timer_Incr", test_CanTp_Timer_Incr },
 	{ "Test of CanTp_Timer_Timeout", test_CanTp_Timer_Timeout },
