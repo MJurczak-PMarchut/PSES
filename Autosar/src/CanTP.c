@@ -1014,7 +1014,7 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
     	//We can report error here, nothing to do
     	return;
     }
-    CanTp_GetPCI(PduInfoPtr, &Can_PCI);
+    CanTp_GetPCI(PduInfoPtr, &Can_PCI);  // @Mateusz CanTp_GetPCI has a return value, we should whether it executed correctly
     switch(CanTP_State.RxState.CanTp_RxState)
     {
     	case CANTP_RX_WAIT:
