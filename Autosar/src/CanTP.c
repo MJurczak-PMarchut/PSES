@@ -137,6 +137,45 @@ static void* CanTP_MemSet(void* destination, int value, uint64 num)
 	return destination;
 }
 
+
+static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *CanPCI){
+	Std_ReturnType retval = E_NOT_OK;
+	PduInfoType PduInfo = {0};
+	uint8_t data[8];
+	if((CanPCI->FS == FS_OVFLW) || (CanPCI->FS == FS_WAIT ) || (CanPCI->FS == FS_CTS)){
+		if(CanPCI->FS <= FS_CTS){
+			PduInfo.SduDataPtr = data;
+			PduInfo.SduDataPtr[0] = FlowControlFrame << 4; // FrameID
+			PduInfo.SduDataPtr[0] |= (CanPCI->FS & 0xF);
+			PduInfo.SduDataPtr[1] = CanPCI->BS;
+			PduInfo.SduDataPtr[2] = CanPCI->ST;
+			retval =  CanIf_Transmit(PduID, &PduInfo);;
+			if(retval == E_NOT_OK){
+				CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
+				CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+				PduR_CanTpRxIndication(PduID, E_NOT_OK);
+			}
+			else{
+	            CanTp_TStart(&N_Ar);
+	            if(CanPCI->FS == FS_CTS){
+	                CanTp_TStart(&N_Cr);
+	            }
+	            else if(CanPCI->FS == FS_WAIT ){
+	                CanTp_TStart(&N_Br);
+	            }
+			}
+		}
+		else{
+			retval = E_NOT_OK;
+		}
+	}
+	else{
+		retval = E_NOT_OK;
+	}
+	return retval;
+}
+
+
 void CanTp_Init (const CanTp_ConfigType* CfgPtr)
 {
 	//Init all to 0
@@ -389,8 +428,7 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
     PduInfoType ULPduInfo;
     uint16 required_blocks;
     Std_ReturnType retval = E_NOT_OK;
-
-    //@Justyna reset N_Cr
+    //TODO @Justyna reset N_Cr
 
     if(CanTP_State.RxState.CanTp_CurrentRxId == RxPduId)
     {
@@ -423,21 +461,32 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
     				retval = E_OK;
     			}
     			else{
+    			    CanPCI_Type FlowControl_PCI = {0};
     				//More expected
     				CanTP_State.RxState.CanTp_ExpectedCFNo++;
     				//check if FC needed
 					//We assume a buffer is locked so we did not lose any space
     				if(CanTP_State.RxState.CanTp_NoOfBlocksTillCTS == 0){
+    					//We will need to send flow control
+						CanPCI_Type FC_Can_PCI = {0};
     					//We may require time so lets calculate how many block we can receive
     					required_blocks = buffer_size / 7;
     					// if non zero then we can at least receive one frame
     					if(required_blocks > 0){
-    						// TODO Send FC(CTS)
+    						FlowControl_PCI.FrameType = FlowControlFrame;
+    						FlowControl_PCI.FS = FS_CTS;
+    						FlowControl_PCI.BS = buffer_size;
+    						FlowControl_PCI.ST = 0;
+    						CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
     						CanTP_State.RxState.CanTp_NoOfBlocksTillCTS = required_blocks;
     						CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
     					}
     					else{
-    						// TODO Send FC(WAIT)
+    						FlowControl_PCI.FrameType = FlowControlFrame;
+    						FlowControl_PCI.FS = FS_WAIT;
+    						FlowControl_PCI.BS = buffer_size;
+    						FlowControl_PCI.ST = 0;
+    						CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
     						CanTP_State.RxState.CanTp_RxState = CANTP_RX_SUSPENDED;
     					}
     					retval = E_OK;
@@ -507,7 +556,7 @@ static Std_ReturnType CanTp_FlowFrameReceived(PduIdType RxPduId, const PduInfoTy
 				case FS_CTS:
 					CanTP_State.TxState.CanTp_BlocksToFCFrame = Can_PCI->BS;
 					retval = E_OK;
-					//Todo Send consecutive frame
+					//Todo @Paulina Send consecutive frame
 					break;
 				case FS_WAIT:
 					//TODO restart timer N_Bs
@@ -598,6 +647,8 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 	PduLengthType buffer_size;
 	Std_ReturnType retval = E_NOT_OK;
 	PduInfoType ULPduInfo;
+	//Prepare PCI container for FC
+	CanPCI_Type FlowControl_PCI = {0};
 	/*
 	 * [SWS_CanTp_00166] ⌈At the reception of a FF or last CF of a block, the CanTp
 	 * module shall start a time-out N_Br before calling PduR_CanTpStartOfReception or PduR_CanTpCopyRxData. ⌋ ( )
@@ -629,7 +680,11 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 		 * the CanTp module shall send a Flow Control N-PDU with overflow status
 		 * (FC(OVFLW)) and abort the N-SDU reception.⌋ ( )
 		 */
-		//TODO Send FC
+		FlowControl_PCI.FrameType = FlowControlFrame;
+		FlowControl_PCI.FS = FS_OVFLW;
+		FlowControl_PCI.BS = buffer_size;
+		FlowControl_PCI.ST = 0;
+		CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
 		retval = E_NOT_OK;
 	}
 	else if(Buf_Status == BUFREQ_E_NOT_OK){
@@ -667,14 +722,18 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 			if(buffer_size < PduInfoPtr->SduLength + 7)
 			//if(buffer_size < 14)
 			{
-				/*  TODO Send FC(WAIT) to wait for buffer
-				 *  @Justyna start N_Br
-				 */
+				FlowControl_PCI.FrameType = FlowControlFrame;
+				FlowControl_PCI.FS = FS_WAIT;
+				FlowControl_PCI.BS = buffer_size;
+				FlowControl_PCI.ST = 0;
+				CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
 			}
 			else{
-				/*
-				 * TODO Send FC(CTS) to wait for buffer
-				 */
+				FlowControl_PCI.FrameType = FlowControlFrame;
+				FlowControl_PCI.FS = FS_CTS;
+				FlowControl_PCI.BS = buffer_size;
+				FlowControl_PCI.ST = 0;
+				CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
 			}
 
 			retval = E_OK;
