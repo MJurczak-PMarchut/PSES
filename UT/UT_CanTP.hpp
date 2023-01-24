@@ -10,10 +10,10 @@
 #include <stdlib.h>
 
 void test_CanTp_Init(void);
-
 void test_CanTp_GetVersionInfo(void);
-
 void test_CanTp_GetPCI(void);
+void test_CanTp_RxIndication(void);
+
 
 
 #endif /* UT_CANTP_HPP_ */

@@ -18,6 +18,11 @@
 
 DEFINE_FFF_GLOBALS;
 
+//FAKE_STATIC_VALUE_FUNC(Std_ReturnType, CanTp_GetPCI, PduInfoType*, CanPCI_Type*);
+//FAKE_STATIC_VOID_FUNC(CanTp_RxIndicationHandleWaitState, PduIdType, PduInfoType*, CanPCI_Type*);
+//FAKE_STATIC_VOID_FUNC(CanTp_RxIndicationHandleProcessingState, PduIdType, PduInfoType*, CanPCI_Type*);
+//FAKE_STATIC_VOID_FUNC(CanTp_RxIndicationHandleSuspendedState, PduIdType, PduInfoType*, CanPCI_Type*);
+
 void test_CanTp_Init(void)
 {
 	CanTp_ConfigType CfgPtr = {};
@@ -120,6 +125,57 @@ void test_CanTp_GetPCI(void)
 	ret = CanTp_GetPCI(&PduInfoPtr, &CanPCI);
 	TEST_CHECK(ret == E_NOT_OK);
 	TEST_CHECK(CanPCI.FrameType == (CanTPFrameType)-1);
+}
+
+void test_CanTp_RxIndication(void)
+{
+//	PduIdType RxPduId;
+//	PduInfoType PduInfo;
+//	RESET_FAKE(CanTp_GetPCI);
+//	RESET_FAKE(CanTp_RxIndicationHandleWaitState);
+//	RESET_FAKE(CanTp_RxIndicationHandleProcessingState);
+//	RESET_FAKE(CanTp_RxIndicationHandleSuspendedState);
+//	CanTp_GetPCI_fake.return_val = E_OK;
+//	// CanTP_State OFF
+//	CanTP_State.CanTP_State = CANTP_OFF;
+//	CanTp_RxIndication(RxPduId, &PduInfo);
+//	TEST_CHECK(CanTp_GetPCI_fake.call_count == 0);
+//	TEST_CHECK(CanTp_RxIndicationHandleWaitState_fake.call_count == 0);
+//	TEST_CHECK(CanTp_RxIndicationHandleProcessingState_fake.call_count == 0);
+//	TEST_CHECK(CanTp_RxIndicationHandleSuspendedState_fake.call_count == 0);
+//	// CanTP_State ON, RxState WAIT
+//	CanTP_State.CanTP_State = CANTP_ON;
+//	CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+//	CanTp_RxIndication(RxPduId, &PduInfo);
+//	TEST_CHECK(CanTp_GetPCI_fake.call_count == 1);
+//	TEST_CHECK(CanTp_RxIndicationHandleWaitState_fake.call_count == 1);
+//	TEST_CHECK(CanTp_RxIndicationHandleProcessingState_fake.call_count == 0);
+//	TEST_CHECK(CanTp_RxIndicationHandleSuspendedState_fake.call_count == 0);
+//	// CanTP_State ON, RxState PROCESSING
+//	CanTP_State.CanTP_State = CANTP_ON;
+//	CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+//	CanTp_RxIndication(RxPduId, &PduInfo);
+//	TEST_CHECK(CanTp_GetPCI_fake.call_count == 2);
+//	TEST_CHECK(CanTp_RxIndicationHandleWaitState_fake.call_count == 1);
+//	TEST_CHECK(CanTp_RxIndicationHandleProcessingState_fake.call_count == 1);
+//	TEST_CHECK(CanTp_RxIndicationHandleSuspendedState_fake.call_count == 0);
+//	// CanTP_State ON, RxState SUSPENDED
+//	CanTP_State.CanTP_State = CANTP_ON;
+//	CanTP_State.RxState.CanTp_RxState = CANTP_RX_SUSPENDED;
+//	CanTp_RxIndication(RxPduId, &PduInfo);
+//	TEST_CHECK(CanTp_GetPCI_fake.call_count == 3);
+//	TEST_CHECK(CanTp_RxIndicationHandleWaitState_fake.call_count == 1);
+//	TEST_CHECK(CanTp_RxIndicationHandleProcessingState_fake.call_count == 1);
+//	TEST_CHECK(CanTp_RxIndicationHandleSuspendedState_fake.call_count == 1);
+//	// CanTP_State ON, RxState INCORRECT
+//	CanTP_State.CanTP_State = CANTP_ON;
+//	CanTP_State.RxState.CanTp_RxState = (CanTp_RxState_Type)3;
+//	CanTp_RxIndication(RxPduId, &PduInfo);
+//	TEST_CHECK(CanTp_GetPCI_fake.call_count == 4);
+//	TEST_CHECK(CanTp_RxIndicationHandleWaitState_fake.call_count == 1);
+//	TEST_CHECK(CanTp_RxIndicationHandleProcessingState_fake.call_count == 1);
+//	TEST_CHECK(CanTp_RxIndicationHandleSuspendedState_fake.call_count == 1);
+
 }
 
 #endif /* UT_CANTP_CPP_ */
