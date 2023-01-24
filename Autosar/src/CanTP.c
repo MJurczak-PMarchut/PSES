@@ -146,7 +146,7 @@ static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *C
 		if(CanPCI->FS <= FS_CTS){
 			PduInfo.SduDataPtr = data;
 			PduInfo.SduDataPtr[0] = FlowControlFrame << 4; // FrameID
-			PduInfo.SduDataPtr[0] = (CanPCI->FS & 0xF);
+			PduInfo.SduDataPtr[0] |= (CanPCI->FS & 0xF);
 			PduInfo.SduDataPtr[1] = CanPCI->BS;
 			PduInfo.SduDataPtr[2] = CanPCI->ST;
 			retval =  CanIf_Transmit(PduID, &PduInfo);;
