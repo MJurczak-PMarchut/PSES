@@ -156,12 +156,12 @@ static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *C
 				PduR_CanTpRxIndication(PduID, E_NOT_OK);
 			}
 			else{
-	            CanTp_TimerStart(&N_Ar);
+	            CanTp_TStart(&N_Ar);
 	            if(CanPCI->FS == FS_CTS){
-	                CanTp_TimerStart(&N_Cr);
+	                CanTp_TStart(&N_Cr);
 	            }
 	            else if(CanPCI->FS == FS_WAIT ){
-	                CanTp_TimerStart(&N_Br);
+	                CanTp_TStart(&N_Br);
 	            }
 			}
 		}
@@ -473,7 +473,6 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
     					required_blocks = buffer_size / 7;
     					// if non zero then we can at least receive one frame
     					if(required_blocks > 0){
-    						CanTP_SendFlowControlFrame(RxPduId, FC_Can_PCI);
     						FlowControl_PCI.FrameType = FlowControlFrame;
     						FlowControl_PCI.FS = FS_CTS;
     						FlowControl_PCI.BS = buffer_size;
