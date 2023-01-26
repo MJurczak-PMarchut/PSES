@@ -22,6 +22,8 @@ DEFINE_FFF_GLOBALS;
 //FAKE_STATIC_VOID_FUNC(CanTp_RxIndicationHandleWaitState, PduIdType, PduInfoType*, CanPCI_Type*);
 //FAKE_STATIC_VOID_FUNC(CanTp_RxIndicationHandleProcessingState, PduIdType, PduInfoType*, CanPCI_Type*);
 //FAKE_STATIC_VOID_FUNC(CanTp_RxIndicationHandleSuspendedState, PduIdType, PduInfoType*, CanPCI_Type*);
+FAKE_STATIC_VOID_FUNC(PduR_CanTpRxIndication, Std_ReturnType);
+
 
 void test_CanTp_Init(void)
 {
@@ -176,6 +178,13 @@ void test_CanTp_RxIndication(void)
 //	TEST_CHECK(CanTp_RxIndicationHandleProcessingState_fake.call_count == 1);
 //	TEST_CHECK(CanTp_RxIndicationHandleSuspendedState_fake.call_count == 1);
 
+}
+
+void test_CanTp_RxIndicationHandleSuspendedState(void)
+{
+	PduIdType RxPduId;
+	PduInfoType PduInfo;
+	CanPCI_Type Can_PCI;
 }
 
 #endif /* UT_CANTP_CPP_ */
