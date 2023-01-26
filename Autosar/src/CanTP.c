@@ -99,7 +99,7 @@ static CanTp_Timer_type N_Bs = {TIMER_NOT_ACTIVE, 0, N_BS_TIMEOUT_VAL};
 static CanTp_Timer_type N_Cs = {TIMER_NOT_ACTIVE, 0, N_CS_TIMEOUT_VAL};
 //KONIEC TIMEROW!!!!!!!!!!!!!!!!!!!
 
-uint32 FC_Wait_frame_ctr;
+static uint32 FC_Wait_frame_ctr;
 
 typedef enum{
 	FS_OVFLW = 0,
