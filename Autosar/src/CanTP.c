@@ -17,6 +17,7 @@
 #endif
 
 #define NULL_PTR NULL
+#define FC_WAIT_FRAME_CTR_MAX 10
 
 
 typedef uint8 CanTp_NPciType;
@@ -97,6 +98,8 @@ static CanTp_Timer_type N_As = {TIMER_NOT_ACTIVE, 0, N_AS_TIMEOUT_VAL};
 static CanTp_Timer_type N_Bs = {TIMER_NOT_ACTIVE, 0, N_BS_TIMEOUT_VAL};
 static CanTp_Timer_type N_Cs = {TIMER_NOT_ACTIVE, 0, N_CS_TIMEOUT_VAL};
 //KONIEC TIMEROW!!!!!!!!!!!!!!!!!!!
+
+uint32 FC_Wait_frame_ctr;
 
 typedef enum{
 	FS_OVFLW = 0,
@@ -373,10 +376,13 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 		else if (BufReq_State == BUFREQ_E_BUSY) {
 			//And now we wait for the buffer to become ready
 			//Start timers
-
+			CanTp_TStart(&N_Cs);
 		}
 		else
 		{
+			CanTp_TReset(&N_As);
+			CanTp_TReset(&N_Bs);
+			CanTp_TReset(&N_Cs);
 			//Undefined ?
 			//TODO Make sure
 			return E_NOT_OK;
@@ -428,7 +434,7 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
     PduInfoType ULPduInfo;
     uint16 required_blocks;
     Std_ReturnType retval = E_NOT_OK;
-    //TODO @Justyna reset N_Cr
+    CanTp_TReset(&N_Cr);
 
     if(CanTP_State.RxState.CanTp_CurrentRxId == RxPduId)
     {
@@ -559,8 +565,8 @@ static Std_ReturnType CanTp_FlowFrameReceived(PduIdType RxPduId, const PduInfoTy
 					//Todo @Paulina Send consecutive frame
 					break;
 				case FS_WAIT:
-					//TODO restart timer N_Bs
-					//@Justyna
+					CanTp_TReset(&N_Bs);
+					CanTp_TReset(&N_Bs);
 					retval = E_OK;
 					break;
 				case FS_OVFLW:
@@ -654,7 +660,7 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 	 * module shall start a time-out N_Br before calling PduR_CanTpStartOfReception or PduR_CanTpCopyRxData. ⌋ ( )
 	 */
 
-	//TODO @Justyna start a time-out N_Br
+
 
 	/*
 	 * CanTp ask PDU Router to make a buffer available for
@@ -960,8 +966,89 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
 /* global scheduled function definitions.                                                         */
 /*------------------------------------------------------------------------------------------------*/
 
-void CanTp_MainFunction(void)
-{
+void CanTp_MainFunction(void){
+	BufReq_ReturnType BufReq_State;
+	uint16 block_size;
+	uint8 separation_time;
+	//static boolean N_Ar_timeout, N_Br_timeout, N_Cr_timeout;
 	//TODO Do stuff here
-	//@Justyna Inkrementacja Timerów i sprawdzenie ich stanów (szkielet drzewka if-else)
+	CanTp_Timer_Incr(&N_Ar);
+	CanTp_Timer_Incr(&N_Br);
+	CanTp_Timer_Incr(&N_Cr);
+
+	CanTp_Timer_Incr(&N_As);
+	CanTp_Timer_Incr(&N_Bs);
+	CanTp_Timer_Incr(&N_Cs);
+
+	if(N_Br.state == TIMER_ACTIVE){
+		if(BufReq_State == BUFREQ_E_NOT_OK){
+
+		}
+		else{
+			CanPCI_Type FlowControl_PCI = {0};
+
+
+			if(block_size > 0){
+				if(CanTP_SendFlowControlFrame(CanTP_State.RxState.CanTp_CurrentRxId, &FlowControl_PCI) == E_NOT_OK){
+					CanTp_TReset(&N_Ar);
+					CanTp_TReset(&N_Br);
+					CanTp_TReset(&N_Cr);
+				}
+				else{
+					CanTp_TReset(&N_Br);
+				}
+			}
+			if(CanTp_Timer_Timeout(&N_Br)){
+				FC_Wait_frame_ctr ++;
+				N_Br.counter = 0;
+				if(FC_Wait_frame_ctr >= FC_WAIT_FRAME_CTR_MAX){
+					CanTp_TReset(&N_Ar);
+					CanTp_TReset(&N_Br);
+					CanTp_TReset(&N_Cr);
+				}
+				else{
+					if(CanTP_SendFlowControlFrame(CanTP_State.RxState.CanTp_CurrentRxId, &FlowControl_PCI) == E_NOT_OK){
+						CanTp_TReset(&N_Ar);
+						CanTp_TReset(&N_Br);
+						CanTp_TReset(&N_Cr);
+					}
+				}
+			}
+		}
+	}
+	if(N_Cr.state == TIMER_ACTIVE){
+		if(CanTp_Timer_Timeout(&N_Cr) == E_NOT_OK){
+			CanTp_TReset(&N_Ar);
+			CanTp_TReset(&N_Br);
+			CanTp_TReset(&N_Cr);
+		}
+	}
+	if(N_Ar.state == TIMER_ACTIVE){
+		if(CanTp_Timer_Timeout(&N_Ar) == E_NOT_OK){
+			CanTp_TReset(&N_Ar);
+			CanTp_TReset(&N_Br);
+			CanTp_TReset(&N_Cr);
+		}
+	}
+	if(N_Cs.state == TIMER_ACTIVE){
+		if(CanTp_Timer_Timeout(&N_Cs) == E_NOT_OK){
+			CanTp_TReset(&N_As);
+			CanTp_TReset(&N_Bs);
+			CanTp_TReset(&N_Cs);
+		}
+	}
+	if(N_Bs.state == TIMER_ACTIVE){
+		if(CanTp_Timer_Timeout(&N_Bs) == E_NOT_OK){
+			CanTp_TReset(&N_As);
+			CanTp_TReset(&N_Bs);
+			CanTp_TReset(&N_Cs);
+		}
+	}
+	if(N_As.state == TIMER_ACTIVE){
+		if(CanTp_Timer_Timeout(&N_As) == E_NOT_OK){
+			CanTp_TReset(&N_As);
+			CanTp_TReset(&N_Bs);
+			CanTp_TReset(&N_Cs);
+		}
+	}
 }
