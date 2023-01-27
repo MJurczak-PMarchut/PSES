@@ -1037,8 +1037,9 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
 /*------------------------------------------------------------------------------------------------*/
 
 void CanTp_MainFunction(void){
-	BufReq_ReturnType BufReq_State;
-	uint16 block_size;
+	//Just for linter
+	BufReq_ReturnType BufReq_State = BUFREQ_E_NOT_OK;
+	uint16 block_size = 0;
 	uint8 separation_time;
 	//static boolean N_Ar_timeout, N_Br_timeout, N_Cr_timeout;
 	//TODO Do stuff here
