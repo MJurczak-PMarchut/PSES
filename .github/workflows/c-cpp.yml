@@ -16,4 +16,4 @@ jobs:
     - name: Get cppcheck
       run: sudo apt-get install -y cppcheck
     - name: Lint using cppcheck
-      run: cppcheck .
+      run: cppcheck . --error-exitcode=1
