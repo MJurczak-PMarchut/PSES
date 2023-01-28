@@ -335,6 +335,7 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
     PduInfoType Tmp_Pdu;
     BufReq_ReturnType BufReq_State;
     PduLengthType Len_Pdu;
+    CanTP_MemSet(&Tmp_Pdu, 0, sizeof(Tmp_Pdu));
     //Has to be on to transmit
     if (CanTP_State.CanTP_State != CANTP_ON)
     {
@@ -354,7 +355,7 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
     	//no data to send
     	return E_NOT_OK;
 	}
-	if(CanTP_State.TxState.CanTp_TxState == CANTP_TX_PROCESSING)
+	if(CanTP_State.TxState.CanTp_TxState != CANTP_TX_WAIT)
 	{
 		/*[SWS_CanTp_00123] ⌈If the configured transmit connection channel is in use
 		(state CANTP_TX_PROCESSING), the CanTp module shall reject new transmission
@@ -363,15 +364,56 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 		CanTp_Transmit() function.⌋ (SRS_Can_01066) */
 		return E_NOT_OK;
 	}
+
+	if (PduInfoPtr->MetaDataPtr != NULL_PTR)
+	{
+
+		/* SWS_CanTp_00334: When CanTp_Transmit is called for an N-SDU with MetaData,
+		 * the CanTp module shall store the addressing information contained in the
+		 * MetaData of the N-SDU and use this information for transmission of SF, FF,
+		 * and CF N-PDUs and for identification of FC N-PDUs. The addressing information
+		 * in the MedataData depends on the addressing format:
+		 * - Normal: none
+		 * - Extended: N_TA
+		 * - Mixed 11 bit: N_AE
+		 * - Normal fixed: N_SA, N_TA
+		 * - Mixed 29 bit: N_SA, N_TA, N_AE. */
+		//We assume Normal addressing format so we ignore it
+		//We do static config
+	}
+	else
+	{
+		//Do nothing
+	}
+
 	if(PduInfoPtr->SduLength < 8){
 		//We only need to send a single frame
 		Tmp_Pdu.SduLength = PduInfoPtr->SduLength;
 		//call PduR
 		BufReq_State = PduR_CanTpCopyTxData(TxPduId, &Tmp_Pdu, NULL, &Len_Pdu);
 		if(BufReq_State == BUFREQ_OK){
+
 			//Start sending single frame: SF
-			//TODO Start sending data here
-			CanTP_State.TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+			PduInfoType PDU_To_send;
+			CanTP_MemSet(&PDU_To_send, 0, sizeof(PDU_To_send));
+			PDU_To_send.SduDataPtr[0] = SingleFrame << 4;
+			PDU_To_send.SduDataPtr[0] = 0x0F & PduInfoPtr->SduLength;
+			for (uint8 data_iter = 0; data_iter < PduInfoPtr->SduLength; data_iter++)
+			{
+				PDU_To_send.SduDataPtr[data_iter + 1] = Tmp_Pdu.SduDataPtr[data_iter];
+			}
+			if(CanIf_Transmit(TxPduId, &PDU_To_send) == E_OK ){
+				//@Justyna start timers
+				tmp_return = E_OK;
+			}
+			else{
+			 /*
+				 [SWS_CanTp_00343]  CanTp shall terminate the current  transmission connection
+				  when CanIf_Transmit() returns E_NOT_OK when transmitting an SF, FF, of CF ()
+			 */
+			 PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
+			 tmp_return = E_NOT_OK;
+			}
 		}
 		else if (BufReq_State == BUFREQ_E_BUSY) {
 			//And now we wait for the buffer to become ready
@@ -385,37 +427,70 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 			CanTp_TReset(&N_Cs);
 			//Undefined ?
 			//TODO Make sure
-			return E_NOT_OK;
+			tmp_return = E_NOT_OK;
 		}
 	}
 	else
 	{
 		//Multiple frames to be sent
-		if (PduInfoPtr->MetaDataPtr != NULL_PTR)
-		{
-
-			/* SWS_CanTp_00334: When CanTp_Transmit is called for an N-SDU with MetaData,
-			 * the CanTp module shall store the addressing information contained in the
-			 * MetaData of the N-SDU and use this information for transmission of SF, FF,
-			 * and CF N-PDUs and for identification of FC N-PDUs. The addressing information
-			 * in the MedataData depends on the addressing format:
-			 * - Normal: none
-			 * - Extended: N_TA
-			 * - Mixed 11 bit: N_AE
-			 * - Normal fixed: N_SA, N_TA
-			 * - Mixed 29 bit: N_SA, N_TA, N_AE. */
-		}
-		else
-		{
-		}
+		Tmp_Pdu.SduLength = PduInfoPtr->SduLength;
+		BufReq_State = PduR_CanTpCopyTxData(TxPduId, &Tmp_Pdu, NULL, &Len_Pdu);
 
 		/* SWS_CanTp_00206: the function CanTp_Transmit shall reject a request if the
 		 * CanTp_Transmit service is called for a N-SDU identifier which is being used in a
 		 * currently running CAN Transport Layer session. */
-		if ((CanTP_State.TxState.CanTp_TxState != CANTP_TX_PROCESSING) &&
-			(PduInfoPtr->SduLength > 0x0000u) && (PduInfoPtr->SduLength <= 0x0FFFu))
+		if(PduInfoPtr->SduLength <= 4095)
 		{
+			PduInfoType PDU_To_send;
+			CanTP_MemSet(&PDU_To_send, 0, sizeof(PDU_To_send));
+			PDU_To_send.SduDataPtr[0] = FirstFrame << 4;
+			PDU_To_send.SduDataPtr[0] |= 0x0F & (PduInfoPtr->SduLength >> 8);
+			PDU_To_send.SduDataPtr[1] = 0xFF & PduInfoPtr->SduLength;
+			for (uint8 data_iter = 0; data_iter < 6; data_iter++)
+			{
+				PDU_To_send.SduDataPtr[data_iter + 2] = Tmp_Pdu.SduDataPtr[data_iter];
+			}
+			if(CanIf_Transmit(TxPduId, &PDU_To_send) == E_OK ){
+				//@Justyna start timers
+				tmp_return = E_OK;
+			}
+			else{
+			 /*
+				 [SWS_CanTp_00343]  CanTp shall terminate the current  transmission connection
+				  when CanIf_Transmit() returns E_NOT_OK when transmitting an SF, FF, of CF ()
+			 */
+			 PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
+			 tmp_return = E_NOT_OK;
+			}
 		}
+		else{
+			PduInfoType PDU_To_send;
+			CanTP_MemSet(&PDU_To_send, 0, sizeof(PDU_To_send));
+			PDU_To_send.SduDataPtr[0] = FirstFrame << 4;
+			PDU_To_send.SduDataPtr[1] = 0;
+
+			PDU_To_send.SduDataPtr[2] = (Tmp_Pdu.SduLength >> 24) & 0xFF;
+			PDU_To_send.SduDataPtr[3] = (Tmp_Pdu.SduLength >> 16) & 0xFF;
+			PDU_To_send.SduDataPtr[4] = (Tmp_Pdu.SduLength >> 8) & 0xFF;
+			PDU_To_send.SduDataPtr[5] = Tmp_Pdu.SduLength & 0xFF;
+			//Data at the end of the world
+			PDU_To_send.SduDataPtr[6] = Tmp_Pdu.SduDataPtr[0];
+			PDU_To_send.SduDataPtr[7] = Tmp_Pdu.SduDataPtr[1];
+
+			if(CanIf_Transmit(TxPduId, &PDU_To_send) == E_OK ){
+				//@Justyna start timers
+				tmp_return = E_OK;
+			}
+			else{
+			 /*
+				 [SWS_CanTp_00343]  CanTp shall terminate the current  transmission connection
+				  when CanIf_Transmit() returns E_NOT_OK when transmitting an SF, FF, of CF ()
+			 */
+			 PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
+			 tmp_return = E_NOT_OK;
+			}
+		}
+
 	}
 
 
@@ -709,7 +784,7 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
          * shall abort the reception of the N-SDU and call PduR_CanTpRxIndication() with
          * the result E_NOT_OK. ⌋ ( )
          */
-
+        //@Justyna Time-Out N-Br
 		/*
 		 * [SWS_CanTp_00082] ⌈After the reception of a First Frame, if the function
 		 * PduR_CanTpStartOfReception() returns BUFREQ_OK with a smaller available
@@ -747,12 +822,7 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
         if(retval == E_OK)
         {
         	//TODO I assume we need to copy the data to PduR (basis: SWS_CanTp_00339)
-        	if(Can_PCI->FrameLength < 4096){
-				PduR_CanTpCopyRxData(RxPduId, &ULPduInfo, &buffer_size);
-        	}
-        	else{
-        		//Nothing to copy
-        	}
+        	PduR_CanTpCopyRxData(RxPduId, &ULPduInfo, &buffer_size);
         	CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
         	CanTP_State.RxState.CanTp_CurrentRxId = RxPduId;
         	CanTP_State.RxState.CanTp_NoOfBlocksTillCTS = (buffer_size/7);
@@ -967,8 +1037,9 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
 /*------------------------------------------------------------------------------------------------*/
 
 void CanTp_MainFunction(void){
-	BufReq_ReturnType BufReq_State;
-	uint16 block_size;
+	//Just for linter
+	BufReq_ReturnType BufReq_State = BUFREQ_E_NOT_OK;
+	uint16 block_size = 0;
 	uint8 separation_time;
 	//static boolean N_Ar_timeout, N_Br_timeout, N_Cr_timeout;
 	//TODO Do stuff here
