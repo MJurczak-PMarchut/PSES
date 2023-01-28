@@ -140,6 +140,80 @@ static void* CanTP_MemSet(void* destination, int value, uint64 num)
 	return destination;
 }
 
+/*
+ * TODO Add brief
+ */
+static Std_ReturnType CanTP_NSDuTransmitHandler(void){
+	Std_ReturnType retval = E_NOT_OK;
+	//Check if there is anything to send
+	if(CanTP_State.TxState.CanTp_TxState == CANTP_TX_WAIT){
+		return E_OK;
+	}
+	if(CanTP_State.TxState.CanTp_BlocksToFCFrame == 0){
+		//we are waiting for CF
+		return E_OK;
+	}
+	//First farme, we should probably send it here
+	if(CanTP_State.TxState.CanTp_MsgLegth < 8){
+		//SF
+	}
+	if(CanTP_State.TxState.CanTp_BytesSent == 0){
+
+		if(CanTP_State.TxState.CanTp_MsgLegth < 4096){
+			// FF format 1
+		}
+		else if(CanTP_State.TxState.CanTp_MsgLegth >= 4096){
+			// FF format 2
+		}
+		else{
+			//wrong length
+			retval = E_NOT_OK;
+		}
+	}
+	else if(CanTP_State.TxState.CanTp_BytesSent >= CanTP_State.TxState.CanTp_MsgLegth){
+		//something went wrong nothing to send
+		CanTP_MemSet(&CanTP_State.TxState, 0, sizeof(CanTP_State.TxState));
+		CanTP_State.TxState.CanTp_TxState= CANTP_TX_WAIT;
+	}
+	else{
+		//CF frame to be sent
+		PduInfoType PduInfoCopy;
+		BufReq_ReturnType Buf_Status;
+		PduLengthType buffer_size;
+		CanTP_MemSet(&PduInfoCopy, 0, sizeof(PduInfoCopy));
+		/*
+		 * [SWS_CanTp_00167] ⌈After a transmission request from upper layer, the CanTp
+		 * module shall start time-out N_Cs before the call of PduR_CanTpCopyTxData. If no
+		 * data is available before the timer elapsed, the CanTp module shall abort the
+		 * communication. ⌋ ( )
+		 * @Justyna
+		 */
+		Buf_Status = PduR_CanTpCopyTxData(CanTP_State.TxState.CanTp_CurrentTxId, &PduInfoCopy, NULL, &buffer_size);
+		if(Buf_Status == BUFREQ_OK){
+			PduInfoType PduToBeSent;
+			CanTP_MemSet(&PduToBeSent, 0, sizeof(PduToBeSent));
+			PduToBeSent.SduLength = 7;
+			//PduToBeSent.SduLength = PduInfoCopy.SduLength;
+			PduToBeSent.SduDataPtr[0] = ConsecutiveFrame << 4;
+			PduToBeSent.SduDataPtr[0] |= CanTP_State.TxState.CanTp_SN & 0xF;
+			for(uint8 data_iter = 0; data_iter < 7; data_iter++){
+				PduToBeSent.SduDataPtr[data_iter + 1] = PduToBeSent.SduDataPtr[data_iter];
+			}
+			CanTP_State.TxState.CanTp_BlocksToFCFrame--;
+			CanTP_State.TxState.CanTp_SN++;
+			CanTP_State.TxState.CanTp_BytesSent += 7;
+			//CanTP_State.TxState.CanTp_BytesSent += PduInfoCopy.SduLength;;
+			CanIf_Transmit(CanTP_State.TxState.CanTp_CurrentTxId, &PduToBeSent);
+		}
+		else{
+			//Error
+			retval = E_NOT_OK;
+		}
+
+	}
+
+	return retval;
+}
 
 static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *CanPCI){
 	Std_ReturnType retval = E_NOT_OK;
@@ -229,27 +303,6 @@ Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 	return ret;
 }
 
-void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
-{
-	CanTp_TxNSduType *nsdu;
-	if(CanTP_State.CanTP_State == CANTP_ON)
-	{
-		//ToDo reset timer N_As
-		if(result == E_OK)
-		{
-	// ToDo
-		}
-		else if(result == E_NOT_OK)
-		{
-			CanTp_CancelTransmit(TxPduId);
-		}
-		else
-		{
-			// incorrect behaviour
-		}
-	}
-}
-
 void CanTp_Shutdown (void)
 {
 	//TODO Stop all connections
@@ -330,7 +383,6 @@ Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, ui
 
 Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 {
-	CanTp_TxNSduType *p_n_sdu = NULL_PTR;
     Std_ReturnType tmp_return = E_NOT_OK;
     PduInfoType Tmp_Pdu;
     BufReq_ReturnType BufReq_State;
@@ -419,14 +471,15 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 			//And now we wait for the buffer to become ready
 			//Start timers
 			CanTp_TStart(&N_Cs);
+			CanTP_State.TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+			CanTP_State.TxState.CanTp_BytesSent = PduInfoPtr->SduLength;
+			CanTP_State.TxState.CanTp_MsgLegth = PduInfoPtr->SduLength;
 		}
 		else
 		{
 			CanTp_TReset(&N_As);
 			CanTp_TReset(&N_Bs);
 			CanTp_TReset(&N_Cs);
-			//Undefined ?
-			//TODO Make sure
 			tmp_return = E_NOT_OK;
 		}
 	}
@@ -452,6 +505,9 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 			}
 			if(CanIf_Transmit(TxPduId, &PDU_To_send) == E_OK ){
 				//@Justyna start timers
+				CanTP_State.TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+				CanTP_State.TxState.CanTp_BytesSent = 6;
+				CanTP_State.TxState.CanTp_MsgLegth = PduInfoPtr->SduLength;
 				tmp_return = E_OK;
 			}
 			else{
@@ -479,6 +535,9 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 
 			if(CanIf_Transmit(TxPduId, &PDU_To_send) == E_OK ){
 				//@Justyna start timers
+				CanTP_State.TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+				CanTP_State.TxState.CanTp_BytesSent = 2;
+				CanTP_State.TxState.CanTp_MsgLegth = PduInfoPtr->SduLength;
 				tmp_return = E_OK;
 			}
 			else{
@@ -486,8 +545,8 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 				 [SWS_CanTp_00343]  CanTp shall terminate the current  transmission connection
 				  when CanIf_Transmit() returns E_NOT_OK when transmitting an SF, FF, of CF ()
 			 */
-			 PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
-			 tmp_return = E_NOT_OK;
+				PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
+				tmp_return = E_NOT_OK;
 			}
 		}
 
@@ -1030,6 +1089,54 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
     		//Report error
     		break;
     }
+}
+
+
+/*
+ * TODO Add brief
+ * [SWS_CanTp_00076] ⌈For confirmation calls, the CanTp module shall provide the
+ * function CanTp_TxConfirmation().⌋ ( )
+ *
+ */
+void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
+{
+	if(CanTP_State.CanTP_State == CANTP_OFF)
+	{
+		//report error
+	}
+	if(TxPduId != CanTP_State.TxState.CanTp_CurrentTxId)
+	{
+		//Report error
+	}
+	else{
+		if(result == E_NOT_OK){
+			PduR_CanTpTxConfirmation(TxPduId, result);
+			CanTP_MemSet(&CanTP_State.TxState, 0, sizeof(CanTP_State.TxState));
+			CanTP_State.TxState.CanTp_TxState= CANTP_TX_WAIT;
+			//@Justyna Probably need to reset timers
+			//We do not retry transmission, abort
+			/*
+			 * [SWS_CanTp_00355] ⌈ CanTp shall abort the corrensponding session, when
+			 * CanTp_TxConfirmation() is called with the result E_NOT_OK.⌋ ()
+			 *
+			 */
+		}
+		else if(result == E_OK){
+			//did we finish transmission ?
+			if(CanTP_State.TxState.CanTp_BytesSent == CanTP_State.TxState.CanTp_MsgLegth){
+				PduR_CanTpTxConfirmation(TxPduId, result);
+				CanTP_MemSet(&CanTP_State.TxState, 0, sizeof(CanTP_State.TxState));
+				CanTP_State.TxState.CanTp_TxState= CANTP_TX_WAIT;
+			}
+			else{
+				//We are still transmitting
+				//@Justyna set timers
+			}
+		}
+		else{
+			//error
+		}
+	}
 }
 
 /*------------------------------------------------------------------------------------------------*/
