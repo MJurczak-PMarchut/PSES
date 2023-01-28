@@ -9,7 +9,6 @@
 #include "CanTP.h"
 
 #include "CanTp_Timers.h"
-#include "mandatory_interfaces_mock.h"
 #define CANTP_CAN_FRAME_SIZE (0x08u)
 
 #ifndef CANTP_MAX_NUM_OF_N_SDU
@@ -1160,6 +1159,7 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
     	//We can report error here, nothing to do
     	return;
     }
+
 	if(pNsdu == NULL){
 		//report error
 		return;
