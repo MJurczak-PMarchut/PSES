@@ -201,7 +201,7 @@ void test_CanTp_RxIndicationHandleSuspendedState(void)
 
 void test_CanTp_FirstFrameReceived(void)
 {
-	PduIdType RxPduId;
+	PduIdType RxPduId = 2;
 	PduInfoType PduInfo;
 	CanPCI_Type Can_PCI;
 	PduLengthType buffer_size;
@@ -213,7 +213,7 @@ void test_CanTp_FirstFrameReceived(void)
 	PduInfo.SduLength = 4095;
 	buffer_size = 4094;
 	PduR_CanTpStartOfReception_fake.return_val = (BufReq_ReturnType)4;
-	*PduR_CanTpStartOfReception_fake.arg3_val = buffer_size;
+	PduR_CanTpStartOfReception_fake.arg3_val = &buffer_size;
 	ret = CanTp_FirstFrameReceived(RxPduId, &PduInfo, &Can_PCI);
 	TEST_CHECK(PduR_CanTpStartOfReception_fake.call_count == 1);
 	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 0);
