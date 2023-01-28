@@ -22,6 +22,8 @@ TEST_LIST = {
 	{ "Test of CanTp_GetVersionInfo", test_CanTp_GetVersionInfo },
 	{ "Test of CanTp_GetPCI", test_CanTp_GetPCI },
 	{ "Test of CanTp_RxIndication", test_CanTp_RxIndication },
+	{ "Test of CanTp_RxIndicationHandleSuspendedState", test_CanTp_RxIndicationHandleSuspendedState },
+	{ "Test of CanTp_FirstFrameReceived", test_CanTp_FirstFrameReceived },
 	// CanTp_Timers tests
     { "Test of CanTp_TStart", test_CanTp_TStart },
 	{ "Test of CanTp_Timer_Incr", test_CanTp_Timer_Incr },

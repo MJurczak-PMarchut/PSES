@@ -13,6 +13,8 @@ void test_CanTp_Init(void);
 void test_CanTp_GetVersionInfo(void);
 void test_CanTp_GetPCI(void);
 void test_CanTp_RxIndication(void);
+void test_CanTp_RxIndicationHandleSuspendedState(void);
+void test_CanTp_FirstFrameReceived(void);
 
 
 
