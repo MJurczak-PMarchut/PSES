@@ -138,7 +138,7 @@ static CanTP_InternalStateType CanTP_State = {0};
 static CanTP_NSdu_Type* CanTP_GetNsduFromPduID(PduIdType PduID)
 {
 	CanTP_NSdu_Type *pNsdu = NULL;
-	for(uint8 nsdu_iter; nsdu_iter < NO_OF_NSDUS; nsdu_iter++)
+	for(uint8 nsdu_iter = 0; nsdu_iter < NO_OF_NSDUS; nsdu_iter++)
 	{
 		if(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID == PduID)
 		{
