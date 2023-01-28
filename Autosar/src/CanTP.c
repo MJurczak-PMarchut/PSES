@@ -148,6 +148,30 @@ static CanTP_NSdu_Type* CanTP_GetNsduFromPduID(PduIdType PduID)
 	return pNsdu;
 }
 
+
+static CanTP_NSdu_Type* CanTP_GetFreeNsdu(PduIdType PduID)
+{
+	CanTP_NSdu_Type *pNsdu;
+	for(uint8 nsdu_iter = 0; nsdu_iter <  NO_OF_NSDUS; nsdu_iter++)
+	{
+		//look for problems
+		pNsdu = &CanTP_State.Nsdu[nsdu_iter];
+		if((pNsdu->CanTp_NsduID == PduID) || (pNsdu->RxState.CanTp_RxState != CANTP_RX_WAIT) || (pNsdu->TxState.CanTp_TxState != CANTP_TX_WAIT)){
+			return NULL;
+		}
+	}
+	for(uint8 nsdu_iter = 0; nsdu_iter <  NO_OF_NSDUS; nsdu_iter++)
+	{
+		//look for problems
+		pNsdu = &CanTP_State.Nsdu[nsdu_iter];
+		if((pNsdu->CanTp_NsduID == 0) && (pNsdu->RxState.CanTp_RxState == CANTP_RX_WAIT) && (pNsdu->TxState.CanTp_TxState == CANTP_TX_WAIT)){
+			return pNsdu;
+		}
+	}
+	return NULL;
+}
+
+
 static void* CanTP_MemSet(void* destination, int value, uint64 num)
 {
 	uint8* dest = (uint8*)destination;
@@ -910,49 +934,58 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 	}
 	else if(Buf_Status == BUFREQ_OK){
 		//TODO check if we have free nsdu slot
-		pNsdu->RxState.CanTp_MessageLength = Can_PCI->FrameLength;
-		pNsdu->CanTp_NsduID = RxPduId;
-        /*
-         * [SWS_CanTp_00339] ⌈After the reception of a First Frame or Single Frame, if the
-         * function PduR_CanTpStartOfReception() returns BUFREQ_OK with a smaller
-         * available buffer size than needed for the already received data, the CanTp module
-         * shall abort the reception of the N-SDU and call PduR_CanTpRxIndication() with
-         * the result E_NOT_OK. ⌋ ( )
-         */
-        //@Justyna Time-Out N-Br
-		/*
-		 * [SWS_CanTp_00082] ⌈After the reception of a First Frame, if the function
-		 * PduR_CanTpStartOfReception() returns BUFREQ_OK with a smaller available
-		 * buffer size than needed for the next block, the CanTp module shall start the timer N_Br.⌋ ( )
-		 */
-		//
-        // so if less than 4096
-		if(buffer_size < PduInfoPtr->SduLength){
-			//[SWS_CanTp_00339]
-			// We need at least SduLength bytes for FF if SDU length is < 4096
+		pNsdu = CanTP_GetFreeNsdu(RxPduId);
+		if(pNsdu == NULL)
+		{
 			PduR_CanTpRxIndication(RxPduId, E_NOT_OK);
 			retval = E_NOT_OK;
 		}
 		else{
-			//[SWS_CanTp_00082] for the next block we need SduLength + 7
-			if(buffer_size < PduInfoPtr->SduLength + 7)
-			//if(buffer_size < 14)
-			{
-				FlowControl_PCI.FrameType = FlowControlFrame;
-				FlowControl_PCI.FS = FS_WAIT;
-				FlowControl_PCI.BS = buffer_size;
-				FlowControl_PCI.ST = 0;
-				CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
+			pNsdu->RxState.CanTp_MessageLength = Can_PCI->FrameLength;
+			pNsdu->CanTp_NsduID = RxPduId;
+
+			/*
+			 * [SWS_CanTp_00339] ⌈After the reception of a First Frame or Single Frame, if the
+			 * function PduR_CanTpStartOfReception() returns BUFREQ_OK with a smaller
+			 * available buffer size than needed for the already received data, the CanTp module
+			 * shall abort the reception of the N-SDU and call PduR_CanTpRxIndication() with
+			 * the result E_NOT_OK. ⌋ ( )
+			 */
+			//@Justyna Time-Out N-Br
+			/*
+			 * [SWS_CanTp_00082] ⌈After the reception of a First Frame, if the function
+			 * PduR_CanTpStartOfReception() returns BUFREQ_OK with a smaller available
+			 * buffer size than needed for the next block, the CanTp module shall start the timer N_Br.⌋ ( )
+			 */
+			//
+			// so if less than 4096
+			if(buffer_size < PduInfoPtr->SduLength){
+				//[SWS_CanTp_00339]
+				// We need at least SduLength bytes for FF if SDU length is < 4096
+				PduR_CanTpRxIndication(RxPduId, E_NOT_OK);
+				retval = E_NOT_OK;
 			}
 			else{
-				FlowControl_PCI.FrameType = FlowControlFrame;
-				FlowControl_PCI.FS = FS_CTS;
-				FlowControl_PCI.BS = buffer_size;
-				FlowControl_PCI.ST = 0;
-				CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
-			}
+				//[SWS_CanTp_00082] for the next block we need SduLength + 7
+				if(buffer_size < PduInfoPtr->SduLength + 7)
+				//if(buffer_size < 14)
+				{
+					FlowControl_PCI.FrameType = FlowControlFrame;
+					FlowControl_PCI.FS = FS_WAIT;
+					FlowControl_PCI.BS = buffer_size;
+					FlowControl_PCI.ST = 0;
+					CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
+				}
+				else{
+					FlowControl_PCI.FrameType = FlowControlFrame;
+					FlowControl_PCI.FS = FS_CTS;
+					FlowControl_PCI.BS = buffer_size;
+					FlowControl_PCI.ST = 0;
+					CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
+				}
 
-			retval = E_OK;
+				retval = E_OK;
+			}
 		}
         if(retval == E_OK)
         {
