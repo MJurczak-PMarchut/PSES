@@ -37,3 +37,8 @@ __attribute__((weak)) BufReq_ReturnType PduR_CanTpStartOfReception(PduIdType id,
 {
 	return BUFREQ_E_NOT_OK;
 }
+
+__attribute__((weak)) Std_ReturnType CanIf_Transmit(PduIdType TxPduId, PduInfoType *PduInfoPtr0)
+{
+	return E_NOT_OK;
+}

@@ -27,12 +27,17 @@ void test_CanTp_Init(void)
 {
 	CanTp_ConfigType CfgPtr = {};
 	CanTP_State.CanTP_State = CANTP_OFF;
-	CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
-	CanTP_State.TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+	for(uint8 NsduIter = 0; NsduIter < NO_OF_NSDUS; NsduIter++){
+		CanTP_State.Nsdu[NsduIter].RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+		CanTP_State.Nsdu[NsduIter].TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+	}
+
 	CanTp_Init(&CfgPtr);
 	TEST_CHECK(CanTP_State.CanTP_State == CANTP_ON);
-	TEST_CHECK(CanTP_State.RxState.CanTp_RxState == CANTP_RX_WAIT);
-	TEST_CHECK(CanTP_State.TxState.CanTp_TxState == CANTP_TX_WAIT);
+	for(uint8 NsduIter = 0; NsduIter < NO_OF_NSDUS; NsduIter++){
+		TEST_CHECK(CanTP_State.Nsdu[NsduIter].RxState.CanTp_RxState == CANTP_RX_WAIT);
+		TEST_CHECK(CanTP_State.Nsdu[NsduIter].TxState.CanTp_TxState == CANTP_TX_WAIT);
+	}
 }
 
 void test_CanTp_GetVersionInfo(void)
@@ -186,10 +191,11 @@ void test_CanTp_RxIndicationHandleSuspendedState(void)
 	RESET_FAKE(PduR_CanTpRxIndication);
 
 	Can_PCI.FrameType = FirstFrame;
-	CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+	CanTP_State.Nsdu[0].RxState.CanTp_RxState = CANTP_RX_PROCESSING;//TODO @Paulina
+	CanTP_State.Nsdu[0].CanTp_NsduID = 1;
 	CanTp_RxIndicationHandleSuspendedState(RxPduId, &PduInfo, &Can_PCI);
 	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 1);
-	TEST_CHECK(CanTP_State.RxState.CanTp_RxState == CANTP_RX_WAIT);
+	TEST_CHECK(CanTP_State.Nsdu[0].RxState.CanTp_RxState == CANTP_RX_WAIT);//TODO @Paulina
 
 }
 

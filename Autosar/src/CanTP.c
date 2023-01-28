@@ -18,6 +18,7 @@
 #define NULL_PTR NULL
 #define FC_WAIT_FRAME_CTR_MAX 10
 
+#define NO_OF_NSDUS 5
 
 typedef uint8 CanTp_NPciType;
 
@@ -67,13 +68,12 @@ typedef struct{
     uint16 CanTp_ExpectedCFNo;
     uint16 CanTp_ReceivedBytes;
     CanTp_RxState_Type CanTp_RxState;
-    PduIdType CanTp_CurrentRxId;
     uint8 CanTp_NoOfBlocksTillCTS;
 } CanTp_RxStateVariablesType;
 
 typedef struct{
     CanTp_TxState_Type CanTp_TxState;
-    PduIdType CanTp_CurrentTxId;
+
     uint16 CanTp_BytesSent;
     uint8_t CanTp_SN;
     uint16 CanTp_BlocksToFCFrame;
@@ -81,21 +81,26 @@ typedef struct{
 } CanTp_TxStateVariablesType;
 
 typedef struct{
+	PduIdType CanTp_NsduID;
 	CanTp_RxStateVariablesType 	RxState;
 	CanTp_TxStateVariablesType	TxState;
+	CanTp_Timer_type N_Ar;
+	CanTp_Timer_type N_Br;
+	CanTp_Timer_type N_Cr;
+	CanTp_Timer_type N_As;
+	CanTp_Timer_type N_Bs;
+	CanTp_Timer_type N_Cs;
+} CanTP_NSdu_Type;
+
+typedef struct{
+	CanTP_NSdu_Type				Nsdu[NO_OF_NSDUS];
 	CanTp_StateType				CanTP_State;
 } CanTP_InternalStateType;
 
 
 
 //TIMERY!!!!!!!!!!!!!
-static CanTp_Timer_type N_Ar = {TIMER_NOT_ACTIVE, 0, N_AR_TIMEOUT_VAL};
-static CanTp_Timer_type N_Br = {TIMER_NOT_ACTIVE, 0, N_BR_TIMEOUT_VAL};
-static CanTp_Timer_type N_Cr = {TIMER_NOT_ACTIVE, 0, N_CR_TIMEOUT_VAL};
 
-static CanTp_Timer_type N_As = {TIMER_NOT_ACTIVE, 0, N_AS_TIMEOUT_VAL};
-static CanTp_Timer_type N_Bs = {TIMER_NOT_ACTIVE, 0, N_BS_TIMEOUT_VAL};
-static CanTp_Timer_type N_Cs = {TIMER_NOT_ACTIVE, 0, N_CS_TIMEOUT_VAL};
 //KONIEC TIMEROW!!!!!!!!!!!!!!!!!!!
 
 static uint32 FC_Wait_frame_ctr;
@@ -127,7 +132,21 @@ typedef struct{
 } CanPCI_Type;
 
 
-static CanTP_InternalStateType CanTP_State;
+static CanTP_InternalStateType CanTP_State = {0};
+
+static CanTP_NSdu_Type* CanTP_GetNsduFromPduID(PduIdType PduID)
+{
+	CanTP_NSdu_Type *pNsdu = NULL;
+	for(uint8 nsdu_iter = 0; nsdu_iter < NO_OF_NSDUS; nsdu_iter++)
+	{
+		if(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID == PduID)
+		{
+			pNsdu = &CanTP_State.Nsdu[nsdu_iter];
+			break;
+		}
+	}
+	return pNsdu;
+}
 
 static void* CanTP_MemSet(void* destination, int value, uint64 num)
 {
@@ -139,11 +158,95 @@ static void* CanTP_MemSet(void* destination, int value, uint64 num)
 	return destination;
 }
 
+/*
+ * TODO Add brief
+ */
+static Std_ReturnType CanTP_NSDuTransmitHandler(PduIdType PduID){
+	Std_ReturnType retval = E_NOT_OK;
+	//Check if there is anything to send
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(PduID);
+	if(pNsdu == NULL){
+		return E_NOT_OK;
+	}
+	if(pNsdu->TxState.CanTp_TxState == CANTP_TX_WAIT){
+		return E_OK;
+	}
+	if(pNsdu->TxState.CanTp_BlocksToFCFrame == 0){
+		//we are waiting for CF
+		return E_OK;
+	}
+	//First farme, we should probably send it here
+	if(pNsdu->TxState.CanTp_MsgLegth < 8){
+		//SF
+	}
+	if(pNsdu->TxState.CanTp_BytesSent == 0){
+
+		if(pNsdu->TxState.CanTp_MsgLegth < 4096){
+			// FF format 1
+		}
+		else if(pNsdu->TxState.CanTp_MsgLegth >= 4096){
+			// FF format 2
+		}
+		else{
+			//wrong length
+			retval = E_NOT_OK;
+		}
+	}
+	else if(pNsdu->TxState.CanTp_BytesSent >= pNsdu->TxState.CanTp_MsgLegth){
+		//something went wrong nothing to send
+		CanTP_MemSet(&pNsdu->TxState, 0, sizeof(pNsdu->TxState));
+		pNsdu->TxState.CanTp_TxState= CANTP_TX_WAIT;
+	}
+	else{
+		//CF frame to be sent
+		PduInfoType PduInfoCopy;
+		BufReq_ReturnType Buf_Status;
+		PduLengthType buffer_size;
+		CanTP_MemSet(&PduInfoCopy, 0, sizeof(PduInfoCopy));
+		/*
+		 * [SWS_CanTp_00167] ⌈After a transmission request from upper layer, the CanTp
+		 * module shall start time-out N_Cs before the call of PduR_CanTpCopyTxData. If no
+		 * data is available before the timer elapsed, the CanTp module shall abort the
+		 * communication. ⌋ ( )
+		 * @Justyna
+		 */
+		Buf_Status = PduR_CanTpCopyTxData(PduID, &PduInfoCopy, NULL, &buffer_size);
+		if(Buf_Status == BUFREQ_OK){
+			PduInfoType PduToBeSent;
+			CanTP_MemSet(&PduToBeSent, 0, sizeof(PduToBeSent));
+			PduToBeSent.SduLength = 7;
+			//PduToBeSent.SduLength = PduInfoCopy.SduLength;
+			PduToBeSent.SduDataPtr[0] = ConsecutiveFrame << 4;
+			PduToBeSent.SduDataPtr[0] |= pNsdu->TxState.CanTp_SN & 0xF;
+			for(uint8 data_iter = 0; data_iter < 7; data_iter++){
+				PduToBeSent.SduDataPtr[data_iter + 1] = PduToBeSent.SduDataPtr[data_iter];
+			}
+			pNsdu->TxState.CanTp_BlocksToFCFrame--;
+			pNsdu->TxState.CanTp_SN++;
+			pNsdu->TxState.CanTp_BytesSent += 7;
+			//pNsdu->TxState.CanTp_BytesSent += PduInfoCopy.SduLength;;
+			CanIf_Transmit(PduID, &PduToBeSent);
+		}
+		else{
+			//Error
+			retval = E_NOT_OK;
+		}
+
+	}
+
+	return retval;
+}
 
 static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *CanPCI){
 	Std_ReturnType retval = E_NOT_OK;
 	PduInfoType PduInfo = {0};
 	uint8_t data[8];
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(PduID);
+	if(pNsdu == NULL){
+		return E_NOT_OK;
+	}
 	if((CanPCI->FS == FS_OVFLW) || (CanPCI->FS == FS_WAIT ) || (CanPCI->FS == FS_CTS)){
 		if(CanPCI->FS <= FS_CTS){
 			PduInfo.SduDataPtr = data;
@@ -153,17 +256,17 @@ static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *C
 			PduInfo.SduDataPtr[2] = CanPCI->ST;
 			retval =  CanIf_Transmit(PduID, &PduInfo);;
 			if(retval == E_NOT_OK){
-				CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-				CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+				CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+				pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 				PduR_CanTpRxIndication(PduID, E_NOT_OK);
 			}
 			else{
-	            CanTp_TStart(&N_Ar);
+	            CanTp_TStart(&pNsdu->N_Ar);
 	            if(CanPCI->FS == FS_CTS){
-	                CanTp_TStart(&N_Cr);
+	                CanTp_TStart(&pNsdu->N_Cr);
 	            }
 	            else if(CanPCI->FS == FS_WAIT ){
-	                CanTp_TStart(&N_Br);
+	                CanTp_TStart(&pNsdu->N_Br);
 	            }
 			}
 		}
@@ -185,17 +288,20 @@ void CanTp_Init (const CanTp_ConfigType* CfgPtr)
 	//CanTP in on state
 	CanTP_State.CanTP_State = CANTP_ON;
 	//And tx and rx is waiting
-	CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
-	CanTP_State.TxState.CanTp_TxState = CANTP_TX_WAIT;
+	for(uint8 NsduIter = 0; NsduIter < NO_OF_NSDUS; NsduIter++){
+		CanTP_MemSet(&CanTP_State.Nsdu[NsduIter], 0, sizeof(CanTP_State.Nsdu[NsduIter]));
+		CanTP_State.Nsdu[NsduIter].RxState.CanTp_RxState = CANTP_RX_WAIT;
+		CanTP_State.Nsdu[NsduIter].TxState.CanTp_TxState = CANTP_TX_WAIT;
 
-	//reset all timers
-	CanTp_TReset(&N_As);
-	CanTp_TReset(&N_Bs);
-	CanTp_TReset(&N_Cs);
-	CanTp_TReset(&N_Ar);
-	CanTp_TReset(&N_Br);
-	CanTp_TReset(&N_Cr);
-
+		//reset all timers
+		//TODO @Justyna please check if we need to do anything elese
+		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_As);
+		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Bs);
+		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Cs);
+		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Ar);
+		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Br);
+		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Cr);
+	}
 
 }
 
@@ -218,47 +324,38 @@ void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo)
 Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 {
 	Std_ReturnType ret = E_NOT_OK;
-
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(TxPduId);
+	if(pNsdu == NULL){
+		return E_NOT_OK;
+	}
 	if(CanTP_State.CanTP_State == CANTP_ON)
 	{
 		PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
-		CanTP_State.TxState.CanTp_TxState = CANTP_TX_WAIT;
+		pNsdu->TxState.CanTp_TxState = CANTP_TX_WAIT;
 		ret = E_OK;
 	}
 	return ret;
-}
-
-void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
-{
-	CanTp_TxNSduType *nsdu;
-	if(CanTP_State.CanTP_State == CANTP_ON)
-	{
-		//ToDo reset timer N_As
-		if(result == E_OK)
-		{
-	// ToDo
-		}
-		else if(result == E_NOT_OK)
-		{
-			CanTp_CancelTransmit(TxPduId);
-		}
-		else
-		{
-			// incorrect behaviour
-		}
-	}
 }
 
 void CanTp_Shutdown (void)
 {
 	//TODO Stop all connections
 	//reset all timers
-		CanTp_TReset(&N_As);
-		CanTp_TReset(&N_Bs);
-		CanTp_TReset(&N_Cs);
-		CanTp_TReset(&N_Ar);
-		CanTp_TReset(&N_Br);
-		CanTp_TReset(&N_Cr);
+	for(uint8 NsduIter = 0; NsduIter < NO_OF_NSDUS; NsduIter++){
+		CanTP_MemSet(&CanTP_State.Nsdu[NsduIter], 0, sizeof(CanTP_State.Nsdu[NsduIter]));
+		CanTP_State.Nsdu[NsduIter].RxState.CanTp_RxState = CANTP_RX_WAIT;
+		CanTP_State.Nsdu[NsduIter].TxState.CanTp_TxState = CANTP_TX_WAIT;
+
+		//reset all timers
+		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_As);
+		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Bs);
+		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Cs);
+		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Ar);
+		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Br);
+		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Cr);
+	}
+
 	CanTP_State.CanTP_State = CANTP_OFF;
 }
 
@@ -267,9 +364,13 @@ Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint
 	CanTp_RxNSduType *nsdu;
 	uint16 val = 0;
 	Std_ReturnType ret = E_NOT_OK;
-
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(id);
+	if(pNsdu == NULL){
+		return E_NOT_OK;
+	}
 	if((CanTP_State.CanTP_State == CANTP_ON) &&
-        (CanTP_State.RxState.CanTp_RxState == CANTP_RX_WAIT))
+        (pNsdu->RxState.CanTp_RxState == CANTP_RX_WAIT))
 	{
 		switch(parameter)
 		{
@@ -292,10 +393,14 @@ Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint
 Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
 {
 	Std_ReturnType ret = E_NOT_OK;
-
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(RxPduId);
+	if(pNsdu == NULL){
+		return E_NOT_OK;
+	}
 	if(CanTP_State.CanTP_State == CANTP_ON)
 	{
-		CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 		PduR_CanTpRxConfirmation(RxPduId, E_NOT_OK);
 	}
 
@@ -306,9 +411,13 @@ Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, ui
 {
 	CanTp_RxNSduType *nsdu;
 	Std_ReturnType ret = E_NOT_OK;
-
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(id);
+	if(pNsdu == NULL){
+		return E_NOT_OK;
+	}
 	if((CanTP_State.CanTP_State == CANTP_ON) &&
-		(CanTP_State.RxState.CanTp_RxState == CANTP_RX_WAIT))
+		(pNsdu->RxState.CanTp_RxState == CANTP_RX_WAIT))
 	{
 		switch(parameter)
 		{
@@ -329,11 +438,15 @@ Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, ui
 
 Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 {
-	CanTp_TxNSduType *p_n_sdu = NULL_PTR;
     Std_ReturnType tmp_return = E_NOT_OK;
     PduInfoType Tmp_Pdu;
     BufReq_ReturnType BufReq_State;
     PduLengthType Len_Pdu;
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(TxPduId);
+	if(pNsdu == NULL){
+		return E_NOT_OK;
+	}
     CanTP_MemSet(&Tmp_Pdu, 0, sizeof(Tmp_Pdu));
     //Has to be on to transmit
     if (CanTP_State.CanTP_State != CANTP_ON)
@@ -354,7 +467,7 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
     	//no data to send
     	return E_NOT_OK;
 	}
-	if(CanTP_State.TxState.CanTp_TxState != CANTP_TX_WAIT)
+	if(pNsdu->TxState.CanTp_TxState != CANTP_TX_WAIT)
 	{
 		/*[SWS_CanTp_00123] ⌈If the configured transmit connection channel is in use
 		(state CANTP_TX_PROCESSING), the CanTp module shall reject new transmission
@@ -417,15 +530,16 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 		else if (BufReq_State == BUFREQ_E_BUSY) {
 			//And now we wait for the buffer to become ready
 			//Start timers
-			CanTp_TStart(&N_Cs);
+			CanTp_TStart(&pNsdu->N_Cs);
+			pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+			pNsdu->TxState.CanTp_BytesSent = PduInfoPtr->SduLength;
+			pNsdu->TxState.CanTp_MsgLegth = PduInfoPtr->SduLength;
 		}
 		else
 		{
-			CanTp_TReset(&N_As);
-			CanTp_TReset(&N_Bs);
-			CanTp_TReset(&N_Cs);
-			//Undefined ?
-			//TODO Make sure
+			CanTp_TReset(&pNsdu->N_As);
+			CanTp_TReset(&pNsdu->N_Bs);
+			CanTp_TReset(&pNsdu->N_Cs);
 			tmp_return = E_NOT_OK;
 		}
 	}
@@ -451,6 +565,9 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 			}
 			if(CanIf_Transmit(TxPduId, &PDU_To_send) == E_OK ){
 				//@Justyna start timers
+				pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+				pNsdu->TxState.CanTp_BytesSent = 6;
+				pNsdu->TxState.CanTp_MsgLegth = PduInfoPtr->SduLength;
 				tmp_return = E_OK;
 			}
 			else{
@@ -478,6 +595,9 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 
 			if(CanIf_Transmit(TxPduId, &PDU_To_send) == E_OK ){
 				//@Justyna start timers
+				pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+				pNsdu->TxState.CanTp_BytesSent = 2;
+				pNsdu->TxState.CanTp_MsgLegth = PduInfoPtr->SduLength;
 				tmp_return = E_OK;
 			}
 			else{
@@ -485,8 +605,8 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 				 [SWS_CanTp_00343]  CanTp shall terminate the current  transmission connection
 				  when CanIf_Transmit() returns E_NOT_OK when transmitting an SF, FF, of CF ()
 			 */
-			 PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
-			 tmp_return = E_NOT_OK;
+				PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
+				tmp_return = E_NOT_OK;
 			}
 		}
 
@@ -508,11 +628,17 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
     PduInfoType ULPduInfo;
     uint16 required_blocks;
     Std_ReturnType retval = E_NOT_OK;
-    CanTp_TReset(&N_Cr);
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(RxPduId);
+	if(pNsdu == NULL){
+		return E_NOT_OK;
+	}
 
-    if(CanTP_State.RxState.CanTp_CurrentRxId == RxPduId)
+    CanTp_TReset(&pNsdu->N_Cr);
+
+    if(pNsdu->CanTp_NsduID == RxPduId)
     {
-    	if(CanTP_State.RxState.CanTp_ExpectedCFNo == Can_PCI->SN)
+    	if(pNsdu->RxState.CanTp_ExpectedCFNo == Can_PCI->SN)
     	{
     		ULPduInfo.SduDataPtr = PduInfoPtr->SduDataPtr+1;
     		ULPduInfo.SduLength = Can_PCI->FrameLength;
@@ -524,11 +650,10 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
     		buf_Status = PduR_CanTpCopyRxData(RxPduId,  &ULPduInfo, &buffer_size);
     		if(buf_Status == BUFREQ_OK)
     		{
-    			CanTP_State.RxState.CanTp_ReceivedBytes += PduInfoPtr->SduLength;
+    			pNsdu->RxState.CanTp_ReceivedBytes += PduInfoPtr->SduLength;
     			//CanTP_State.RxState.CanTp_ReceivedBytes += Can_PCI->FrameLength
-    			//TODO ask during consultations
-    			CanTP_State.RxState.CanTp_NoOfBlocksTillCTS--;
-    			if(CanTP_State.RxState.CanTp_MessageLength == CanTP_State.RxState.CanTp_ReceivedBytes){
+    			pNsdu->RxState.CanTp_NoOfBlocksTillCTS--;
+    			if(pNsdu->RxState.CanTp_MessageLength == pNsdu->RxState.CanTp_ReceivedBytes){
     				//All data received
                     /*
                      * [SWS_CanTp_00084] ⌈When the transport reception session is completed
@@ -536,17 +661,17 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
                      * notification service PduR_CanTpRxIndication().
                      */
     				PduR_CanTpRxIndication(RxPduId, E_OK);
-    				CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-    				CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+    				CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+    				pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
     				retval = E_OK;
     			}
     			else{
     			    CanPCI_Type FlowControl_PCI = {0};
     				//More expected
-    				CanTP_State.RxState.CanTp_ExpectedCFNo++;
+    			    pNsdu->RxState.CanTp_ExpectedCFNo++;
     				//check if FC needed
 					//We assume a buffer is locked so we did not lose any space
-    				if(CanTP_State.RxState.CanTp_NoOfBlocksTillCTS == 0){
+    				if(pNsdu->RxState.CanTp_NoOfBlocksTillCTS == 0){
     					//We will need to send flow control
 						CanPCI_Type FC_Can_PCI = {0};
     					//We may require time so lets calculate how many block we can receive
@@ -558,8 +683,8 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
     						FlowControl_PCI.BS = buffer_size;
     						FlowControl_PCI.ST = 0;
     						CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
-    						CanTP_State.RxState.CanTp_NoOfBlocksTillCTS = required_blocks;
-    						CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+    						pNsdu->RxState.CanTp_NoOfBlocksTillCTS = required_blocks;
+    						pNsdu->RxState.CanTp_RxState = CANTP_RX_PROCESSING;
     					}
     					else{
     						FlowControl_PCI.FrameType = FlowControlFrame;
@@ -567,7 +692,7 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
     						FlowControl_PCI.BS = buffer_size;
     						FlowControl_PCI.ST = 0;
     						CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
-    						CanTP_State.RxState.CanTp_RxState = CANTP_RX_SUSPENDED;
+    						pNsdu->RxState.CanTp_RxState = CANTP_RX_SUSPENDED;
     					}
     					retval = E_OK;
     				}
@@ -586,8 +711,8 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
                  * PduR_CanTpRxIndication() with the result E_NOT_OK.
                  */
     			PduR_CanTpRxIndication(RxPduId, E_NOT_OK);
-				CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-				CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+				CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+				pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
     		}
     	}
     	else{
@@ -598,15 +723,15 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
              * by calling the indication function PduR_CanTpRxIndication() with the result E_NOT_OK.
             */
 			PduR_CanTpRxIndication(RxPduId, E_NOT_OK);
-			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
     	}
     }
     else{
     	//zły PDU ID, jw
 		PduR_CanTpRxIndication(RxPduId, E_NOT_OK);
-		CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-		CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+		CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
     }
     return retval;
 }
@@ -619,7 +744,12 @@ static Std_ReturnType CanTp_FlowFrameReceived(PduIdType RxPduId, const PduInfoTy
 	Std_ReturnType retval = E_NOT_OK;
 	//We received FC so we are transmitting
 	//Did we get correct frame?
-	if((CanTP_State.TxState.CanTp_TxState == CANTP_TX_PROCESSING) || (CanTP_State.TxState.CanTp_TxState == CANTP_TX_SUSPENDED))
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(RxPduId);
+	if(pNsdu == NULL){
+		return E_NOT_OK;
+	}
+	if((pNsdu->TxState.CanTp_TxState == CANTP_TX_PROCESSING) || (pNsdu->TxState.CanTp_TxState == CANTP_TX_SUSPENDED))
 	{
 		/*
 		 * [SWS_CanTp_00057] ⌈If unexpected frames are received, the CanTp module shall
@@ -631,16 +761,16 @@ static Std_ReturnType CanTp_FlowFrameReceived(PduIdType RxPduId, const PduInfoTy
 		 *  information (N_AI) as the reception or transmission, which may be in progress at the
 		 *  time the N_PDU is received.
 		 */
-		if(CanTP_State.TxState.CanTp_CurrentTxId == RxPduId){
+		if(pNsdu->CanTp_NsduID == RxPduId){
 			switch(Can_PCI->FS){
 				case FS_CTS:
-					CanTP_State.TxState.CanTp_BlocksToFCFrame = Can_PCI->BS;
+					pNsdu->TxState.CanTp_BlocksToFCFrame = Can_PCI->BS;
 					retval = E_OK;
 					//Todo @Paulina Send consecutive frame
 					break;
 				case FS_WAIT:
-					CanTp_TReset(&N_Bs);
-					CanTp_TReset(&N_Bs);
+					CanTp_TReset(&pNsdu->N_Bs);
+					CanTp_TReset(&pNsdu->N_Bs);
 					retval = E_OK;
 					break;
 				case FS_OVFLW:
@@ -648,15 +778,15 @@ static Std_ReturnType CanTp_FlowFrameReceived(PduIdType RxPduId, const PduInfoTy
 					 * abort the transmit request and notify the upper layer by calling the callback
 					 * function PduR_CanTpTxConfirmation() with the result E_NOT_OK. ⌋
 					 */
-					PduR_CanTpTxConfirmation(CanTP_State.TxState.CanTp_CurrentTxId, E_NOT_OK);
-					CanTP_MemSet(&CanTP_State.TxState, 0, sizeof(CanTP_State.TxState));
-					CanTP_State.TxState.CanTp_TxState = CANTP_TX_WAIT;
+					PduR_CanTpTxConfirmation(RxPduId, E_NOT_OK);
+					CanTP_MemSet(&pNsdu->TxState, 0, sizeof(pNsdu->TxState));
+					pNsdu->TxState.CanTp_TxState = CANTP_TX_WAIT;
 					retval = E_OK;
 					break;
 				default:
-					PduR_CanTpTxConfirmation(CanTP_State.TxState.CanTp_CurrentTxId, E_NOT_OK);
-					CanTP_MemSet(&CanTP_State.TxState, 0, sizeof(CanTP_State.TxState));
-					CanTP_State.TxState.CanTp_TxState = CANTP_TX_WAIT;
+					PduR_CanTpTxConfirmation(RxPduId, E_NOT_OK);
+					CanTP_MemSet(&pNsdu->TxState, 0, sizeof(pNsdu->TxState));
+					pNsdu->TxState.CanTp_TxState = CANTP_TX_WAIT;
 					retval = E_OK;
 					break;
 			}
@@ -729,6 +859,11 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 	PduInfoType ULPduInfo;
 	//Prepare PCI container for FC
 	CanPCI_Type FlowControl_PCI = {0};
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(RxPduId);
+	if(pNsdu != NULL){
+		return E_NOT_OK;
+	}
 	/*
 	 * [SWS_CanTp_00166] ⌈At the reception of a FF or last CF of a block, the CanTp
 	 * module shall start a time-out N_Br before calling PduR_CanTpStartOfReception or PduR_CanTpCopyRxData. ⌋ ( )
@@ -774,8 +909,9 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 		retval = E_NOT_OK;
 	}
 	else if(Buf_Status == BUFREQ_OK){
-        CanTP_State.RxState.CanTp_MessageLength = Can_PCI->FrameLength;
-        CanTP_State.RxState.CanTp_CurrentRxId = RxPduId;
+		//TODO check if we have free nsdu slot
+		pNsdu->RxState.CanTp_MessageLength = Can_PCI->FrameLength;
+		pNsdu->CanTp_NsduID = RxPduId;
         /*
          * [SWS_CanTp_00339] ⌈After the reception of a First Frame or Single Frame, if the
          * function PduR_CanTpStartOfReception() returns BUFREQ_OK with a smaller
@@ -794,7 +930,7 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 		if(buffer_size < PduInfoPtr->SduLength){
 			//[SWS_CanTp_00339]
 			// We need at least SduLength bytes for FF if SDU length is < 4096
-			PduR_CanTpRxIndication(CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
+			PduR_CanTpRxIndication(RxPduId, E_NOT_OK);
 			retval = E_NOT_OK;
 		}
 		else{
@@ -820,11 +956,10 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 		}
         if(retval == E_OK)
         {
-        	//TODO I assume we need to copy the data to PduR (basis: SWS_CanTp_00339)
         	PduR_CanTpCopyRxData(RxPduId, &ULPduInfo, &buffer_size);
-        	CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
-        	CanTP_State.RxState.CanTp_CurrentRxId = RxPduId;
-        	CanTP_State.RxState.CanTp_NoOfBlocksTillCTS = (buffer_size/7);
+        	pNsdu->RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+        	pNsdu->CanTp_NsduID = RxPduId;
+        	pNsdu->RxState.CanTp_NoOfBlocksTillCTS = (buffer_size/7);
         }
 	}
 	else{
@@ -896,6 +1031,8 @@ static void CanTp_RxIndicationHandleWaitState(PduIdType RxPduId, const PduInfoTy
 	// In wait state we should only receive start of communication or flow control frame if we are waiting for it
 	// disregard CF
 	Std_ReturnType retval = E_NOT_OK;
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(RxPduId);
 	switch(Can_PCI->FrameType)
 	{
 		case FirstFrame:
@@ -917,8 +1054,8 @@ static void CanTp_RxIndicationHandleWaitState(PduIdType RxPduId, const PduInfoTy
 	if(retval != E_OK)
 	{
 		//report error or abort
-		CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-		CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+		CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 	}
 }
 
@@ -929,19 +1066,24 @@ static void CanTp_RxIndicationHandleProcessingState(PduIdType RxPduId, const Pdu
 	 *
 	 *
 	 */
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(RxPduId);
+	if(pNsdu == NULL){
+		//report error
+	}
 	Std_ReturnType retval = E_NOT_OK;
 	switch(Can_PCI->FrameType)
 	{
 		case FirstFrame:
-			PduR_CanTpRxIndication(CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
-			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+			PduR_CanTpRxIndication(pNsdu->CanTp_NsduID, E_NOT_OK);
+			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 			retval = CanTp_FirstFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case SingleFrame:
-			PduR_CanTpRxIndication(CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
-			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+			PduR_CanTpRxIndication(pNsdu->CanTp_NsduID, E_NOT_OK);
+			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 			retval = CanTp_SingleFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case FlowControlFrame:
@@ -957,8 +1099,8 @@ static void CanTp_RxIndicationHandleProcessingState(PduIdType RxPduId, const Pdu
 	if(retval != E_OK)
 	{
 		//report error or abort
-		CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-		CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+		CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 	}
 }
 
@@ -967,18 +1109,20 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 	//Same as processing (N_Br timer expired and not enough buffer space)
 	//FF and SF cause restart of the reception
 	Std_ReturnType retval = E_NOT_OK;
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(RxPduId);
 	switch(Can_PCI->FrameType)
 	{
 		case FirstFrame:
-			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
-			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+			PduR_CanTpRxIndication (RxPduId, E_NOT_OK);
+			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 			retval = CanTp_FirstFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case SingleFrame:
-			PduR_CanTpRxIndication ( CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
-			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+			PduR_CanTpRxIndication (pNsdu->CanTp_NsduID, E_NOT_OK);
+			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 			retval = CanTp_SingleFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case FlowControlFrame:
@@ -988,9 +1132,9 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 		case ConsecutiveFrame:
 			//We should not receive CF at this time as we do not have enough buffer space
 			//We reset communication and report an error
-			PduR_CanTpRxIndication (CanTP_State.RxState.CanTp_CurrentRxId, E_NOT_OK);
-			CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-			CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+			PduR_CanTpRxIndication (RxPduId, E_NOT_OK);
+			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 			break;
 		default:
 			//Error to be reported or ignored
@@ -999,8 +1143,8 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 	if(retval != E_OK)
 	{
 		//report error or abort
-		CanTP_MemSet(&CanTP_State.RxState, 0, sizeof(CanTP_State.RxState));
-		CanTP_State.RxState.CanTp_RxState = CANTP_RX_WAIT;
+		CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 	}
 }
 
@@ -1008,13 +1152,20 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
 {
 
     CanPCI_Type Can_PCI;
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(RxPduId);
     if(CanTP_State.CanTP_State == CANTP_OFF)
     {
     	//We can report error here, nothing to do
     	return;
     }
-    CanTp_GetPCI(PduInfoPtr, &Can_PCI);  // @Mateusz CanTp_GetPCI has a return value, we should whether it executed correctly
-    switch(CanTP_State.RxState.CanTp_RxState)
+
+	if(pNsdu == NULL){
+		//report error
+		return;
+	}
+    CanTp_GetPCI(PduInfoPtr, &Can_PCI);
+    switch(pNsdu->RxState.CanTp_RxState)
     {
     	case CANTP_RX_WAIT:
     		CanTp_RxIndicationHandleWaitState(RxPduId, PduInfoPtr, &Can_PCI);
@@ -1031,6 +1182,57 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
     }
 }
 
+
+/*
+ * TODO Add brief
+ * [SWS_CanTp_00076] ⌈For confirmation calls, the CanTp module shall provide the
+ * function CanTp_TxConfirmation().⌋ ( )
+ *
+ */
+void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
+{
+	CanTP_NSdu_Type *pNsdu = NULL;
+	pNsdu = CanTP_GetNsduFromPduID(TxPduId);
+	if(pNsdu == NULL){
+		//report error
+		return;
+	}
+	if(CanTP_State.CanTP_State == CANTP_OFF)
+	{
+		//report error
+	}
+
+	else{
+		if(result == E_NOT_OK){
+			PduR_CanTpTxConfirmation(TxPduId, result);
+			CanTP_MemSet(&pNsdu->TxState, 0, sizeof(pNsdu->TxState));
+			pNsdu->TxState.CanTp_TxState= CANTP_TX_WAIT;
+			//@Justyna Probably need to reset timers
+			//We do not retry transmission, abort
+			/*
+			 * [SWS_CanTp_00355] ⌈ CanTp shall abort the corrensponding session, when
+			 * CanTp_TxConfirmation() is called with the result E_NOT_OK.⌋ ()
+			 *
+			 */
+		}
+		else if(result == E_OK){
+			//did we finish transmission ?
+			if(pNsdu->TxState.CanTp_BytesSent == pNsdu->TxState.CanTp_MsgLegth){
+				PduR_CanTpTxConfirmation(TxPduId, result);
+				CanTP_MemSet(&pNsdu->TxState, 0, sizeof(pNsdu->TxState));
+				pNsdu->TxState.CanTp_TxState= CANTP_TX_WAIT;
+			}
+			else{
+				//We are still transmitting
+				//@Justyna set timers
+			}
+		}
+		else{
+			//error
+		}
+	}
+}
+
 /*------------------------------------------------------------------------------------------------*/
 /* global scheduled function definitions.                                                         */
 /*------------------------------------------------------------------------------------------------*/
@@ -1040,85 +1242,105 @@ void CanTp_MainFunction(void){
 	BufReq_ReturnType BufReq_State = BUFREQ_E_NOT_OK;
 	uint16 block_size = 0;
 	uint8 separation_time;
-	//static boolean N_Ar_timeout, N_Br_timeout, N_Cr_timeout;
-	//TODO Do stuff here
-	CanTp_Timer_Incr(&N_Ar);
-	CanTp_Timer_Incr(&N_Br);
-	CanTp_Timer_Incr(&N_Cr);
 
-	CanTp_Timer_Incr(&N_As);
-	CanTp_Timer_Incr(&N_Bs);
-	CanTp_Timer_Incr(&N_Cs);
+	CanTp_Timer_type *N_Ar;
+	CanTp_Timer_type *N_Br;
+	CanTp_Timer_type *N_Cr;
 
-	if(N_Br.state == TIMER_ACTIVE){
-		if(BufReq_State == BUFREQ_E_NOT_OK){
+	CanTp_Timer_type *N_As;
+	CanTp_Timer_type *N_Bs;
+	CanTp_Timer_type *N_Cs;
 
-		}
-		else{
-			CanPCI_Type FlowControl_PCI = {0};
+	for(uint8 nsdu_iter = 0; nsdu_iter < NO_OF_NSDUS; nsdu_iter++)
+	{
+		//static boolean N_Ar_timeout, N_Br_timeout, N_Cr_timeout;
+		//TODO Do stuff here
+		N_Ar = &CanTP_State.Nsdu[nsdu_iter].N_Ar;
+		N_Br = &CanTP_State.Nsdu[nsdu_iter].N_Br;
+		N_Cr = &CanTP_State.Nsdu[nsdu_iter].N_Cr;
 
+		N_As = &CanTP_State.Nsdu[nsdu_iter].N_As;
+		N_Bs = &CanTP_State.Nsdu[nsdu_iter].N_Bs;
+		N_Cs = &CanTP_State.Nsdu[nsdu_iter].N_Cs;
 
-			if(block_size > 0){
-				if(CanTP_SendFlowControlFrame(CanTP_State.RxState.CanTp_CurrentRxId, &FlowControl_PCI) == E_NOT_OK){
-					CanTp_TReset(&N_Ar);
-					CanTp_TReset(&N_Br);
-					CanTp_TReset(&N_Cr);
-				}
-				else{
-					CanTp_TReset(&N_Br);
-				}
+		CanTp_Timer_Incr(N_Ar);
+		CanTp_Timer_Incr(N_Br);
+		CanTp_Timer_Incr(N_Cr);
+
+		CanTp_Timer_Incr(N_As);
+		CanTp_Timer_Incr(N_Bs);
+		CanTp_Timer_Incr(N_Cs);
+
+		if(N_Br->state == TIMER_ACTIVE){
+			if(BufReq_State == BUFREQ_E_NOT_OK){
+
 			}
-			if(CanTp_Timer_Timeout(&N_Br)){
-				FC_Wait_frame_ctr ++;
-				N_Br.counter = 0;
-				if(FC_Wait_frame_ctr >= FC_WAIT_FRAME_CTR_MAX){
-					CanTp_TReset(&N_Ar);
-					CanTp_TReset(&N_Br);
-					CanTp_TReset(&N_Cr);
+			else{
+				CanPCI_Type FlowControl_PCI = {0};
+
+
+				if(block_size > 0){
+					if(CanTP_SendFlowControlFrame(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, &FlowControl_PCI) == E_NOT_OK){
+						CanTp_TReset(N_Ar);
+						CanTp_TReset(N_Br);
+						CanTp_TReset(N_Cr);
+					}
+					else{
+						CanTp_TReset(N_Br);
+					}
 				}
-				else{
-					if(CanTP_SendFlowControlFrame(CanTP_State.RxState.CanTp_CurrentRxId, &FlowControl_PCI) == E_NOT_OK){
-						CanTp_TReset(&N_Ar);
-						CanTp_TReset(&N_Br);
-						CanTp_TReset(&N_Cr);
+				if(CanTp_Timer_Timeout(N_Br)){
+					FC_Wait_frame_ctr ++;
+					N_Br->counter = 0;
+					if(FC_Wait_frame_ctr >= FC_WAIT_FRAME_CTR_MAX){
+						CanTp_TReset(N_Ar);
+						CanTp_TReset(N_Br);
+						CanTp_TReset(N_Cr);
+					}
+					else{
+						if(CanTP_SendFlowControlFrame(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, &FlowControl_PCI) == E_NOT_OK){
+							CanTp_TReset(N_Ar);
+							CanTp_TReset(N_Br);
+							CanTp_TReset(N_Cr);
+						}
 					}
 				}
 			}
 		}
-	}
-	if(N_Cr.state == TIMER_ACTIVE){
-		if(CanTp_Timer_Timeout(&N_Cr) == E_NOT_OK){
-			CanTp_TReset(&N_Ar);
-			CanTp_TReset(&N_Br);
-			CanTp_TReset(&N_Cr);
+		if(N_Cr->state == TIMER_ACTIVE){
+			if(CanTp_Timer_Timeout(N_Cr) == E_NOT_OK){
+				CanTp_TReset(N_Ar);
+				CanTp_TReset(N_Br);
+				CanTp_TReset(N_Cr);
+			}
 		}
-	}
-	if(N_Ar.state == TIMER_ACTIVE){
-		if(CanTp_Timer_Timeout(&N_Ar) == E_NOT_OK){
-			CanTp_TReset(&N_Ar);
-			CanTp_TReset(&N_Br);
-			CanTp_TReset(&N_Cr);
+		if(N_Ar->state == TIMER_ACTIVE){
+			if(CanTp_Timer_Timeout(N_Ar) == E_NOT_OK){
+				CanTp_TReset(N_Ar);
+				CanTp_TReset(N_Br);
+				CanTp_TReset(N_Cr);
+			}
 		}
-	}
-	if(N_Cs.state == TIMER_ACTIVE){
-		if(CanTp_Timer_Timeout(&N_Cs) == E_NOT_OK){
-			CanTp_TReset(&N_As);
-			CanTp_TReset(&N_Bs);
-			CanTp_TReset(&N_Cs);
+		if(N_Cs->state == TIMER_ACTIVE){
+			if(CanTp_Timer_Timeout(N_Cs) == E_NOT_OK){
+				CanTp_TReset(N_As);
+				CanTp_TReset(N_Bs);
+				CanTp_TReset(N_Cs);
+			}
 		}
-	}
-	if(N_Bs.state == TIMER_ACTIVE){
-		if(CanTp_Timer_Timeout(&N_Bs) == E_NOT_OK){
-			CanTp_TReset(&N_As);
-			CanTp_TReset(&N_Bs);
-			CanTp_TReset(&N_Cs);
+		if(N_Bs->state == TIMER_ACTIVE){
+			if(CanTp_Timer_Timeout(N_Bs) == E_NOT_OK){
+				CanTp_TReset(N_As);
+				CanTp_TReset(N_Bs);
+				CanTp_TReset(N_Cs);
+			}
 		}
-	}
-	if(N_As.state == TIMER_ACTIVE){
-		if(CanTp_Timer_Timeout(&N_As) == E_NOT_OK){
-			CanTp_TReset(&N_As);
-			CanTp_TReset(&N_Bs);
-			CanTp_TReset(&N_Cs);
+		if(N_As->state == TIMER_ACTIVE){
+			if(CanTp_Timer_Timeout(N_As) == E_NOT_OK){
+				CanTp_TReset(N_As);
+				CanTp_TReset(N_Bs);
+				CanTp_TReset(N_Cs);
+			}
 		}
 	}
 }
