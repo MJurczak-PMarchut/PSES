@@ -12,7 +12,13 @@
 extern "C" {
 #endif
 #include "Std_Types.h"
+#include "fff.h"
 #include "CanTP.h"
+
+DEFINE_FFF_GLOBALS;
+
+FAKE_VOID_FUNC(PduR_CanTpRxIndication, PduIdType, Std_ReturnType);
+
 
 uint8_t test_return1(void)
 {
@@ -36,6 +42,23 @@ uint8_t test_return2(void)
 		{
 			return 1;
 		}
+	return 0;
+}
+
+
+uint8_t test_CanTp_Init(void)
+{
+//	CanTp_ConfigType CfgPtr = {};
+//	CanTP_State.CanTP_State = CANTP_OFF;
+//	CanTP_State.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+//	CanTP_State.TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+//	CanTp_Init(&CfgPtr);
+//	if((CanTP_State.CanTP_State == CANTP_ON) &&
+//	(CanTP_State.RxState.CanTp_RxState == CANTP_RX_WAIT) &&
+//	(CanTP_State.TxState.CanTp_TxState == CANTP_TX_WAIT))
+//	{
+//		return 1;
+//	}
 	return 0;
 }
 

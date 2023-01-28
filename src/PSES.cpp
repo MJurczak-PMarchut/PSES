@@ -6,11 +6,11 @@
 // Description : Hello World in C++, Ansi-style
 //============================================================================
 
-#define CATCH_CONFIG_RUNNER
+//#define CATCH_CONFIG_RUNNER
 #include <iostream>
 
-#include "catch.hpp"
-#include "test1.hpp"
+//#include "catch.hpp"
+//#include "test1.hpp"
 #include "acutest.h"
 #include "UT_CanTP.hpp"
 #include "UT_CanTp_Timers.hpp"
