@@ -477,8 +477,6 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 		}
 		else
 		{
-			//That is not right @Justyna
-			//We should not be doing anything here
 			CanTp_TReset(&N_As);
 			CanTp_TReset(&N_Bs);
 			CanTp_TReset(&N_Cs);
