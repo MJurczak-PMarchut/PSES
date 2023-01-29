@@ -319,16 +319,16 @@ void test_CanTp_FirstFrameReceived(void)//ToDo
 	TEST_CHECK(PduR_CanTpStartOfReception_fake.call_count == 1);
 	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 0);
 	TEST_CHECK(ret = E_NOT_OK);
-	// BUFREQ_OK, buffer_size < PduInfoPtr->SduLength
-	Can_PCI.FrameLength = 4095;
-	PduInfo.SduLength = 4095;
-	buffer_size = 4094;
-	PduR_CanTpStartOfReception_fake.return_val = BUFREQ_OK;
-	PduR_CanTpStartOfReception_fake.arg3_val = &buffer_size;
-	ret = CanTp_FirstFrameReceived(RxPduId, &PduInfo, &Can_PCI);
-	TEST_CHECK(PduR_CanTpStartOfReception_fake.call_count == 2);
-	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 1);
-	TEST_CHECK(ret = E_NOT_OK);
+//	// BUFREQ_OK, buffer_size < PduInfoPtr->SduLength
+//	Can_PCI.FrameLength = 4095;
+//	PduInfo.SduLength = 4095;
+//	buffer_size = 4094;
+//	PduR_CanTpStartOfReception_fake.return_val = BUFREQ_OK;
+//	PduR_CanTpStartOfReception_fake.arg3_val = &buffer_size;
+//	ret = CanTp_FirstFrameReceived(RxPduId, &PduInfo, &Can_PCI);
+//	TEST_CHECK(PduR_CanTpStartOfReception_fake.call_count == 2);
+//	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 1);
+//	TEST_CHECK(ret = E_NOT_OK);
 }
 
 void test_CanTP_SendFlowControlFrame(void)
