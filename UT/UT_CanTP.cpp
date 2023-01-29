@@ -43,12 +43,49 @@ void test_CanTp_Init(void)
 void test_CanTP_GetNsduFromPduID(void)
 {
 	CanTp_ConfigType CfgPtr = {};
-	PduIdType PduID = 0x34;
+	PduIdType PduID;
 	CanTP_NSdu_Type* pNsdu = NULL;
 	CanTp_Init(&CfgPtr);
+
+	PduID = 0x34;
 	CanTP_State.Nsdu[3].CanTp_NsduID = PduID;
 	pNsdu = CanTP_GetNsduFromPduID(PduID);
 	TEST_CHECK(pNsdu == &CanTP_State.Nsdu[3]);
+
+	PduID = 0x43;
+	pNsdu = CanTP_GetNsduFromPduID(PduID);
+	TEST_CHECK(pNsdu == NULL);
+}
+
+void test_CanTP_GetFreeNsdu(void)
+{
+	PduIdType PduID;
+	CanTP_NSdu_Type* pNsdu = NULL;
+	CanTp_ConfigType CfgPtr = {};
+
+	//all Nsdu in use
+	CanTp_Init(&CfgPtr);
+	PduID = 0x21;
+	for(uint8 nsdu_iter = 0; nsdu_iter <  NO_OF_NSDUS; nsdu_iter++)
+	{
+		CanTP_State.Nsdu[nsdu_iter].RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+	}
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	TEST_CHECK(pNsdu == NULL);
+
+	//PduID is already in use
+	CanTp_Init(&CfgPtr);
+	PduID = 0x21;
+	CanTP_State.Nsdu[2].CanTp_NsduID = PduID;
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	TEST_CHECK(pNsdu == NULL);
+
+	//free Nsdu available
+	CanTp_Init(&CfgPtr);
+	PduID = 0x21;
+	CanTP_State.Nsdu[0].TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	TEST_CHECK(pNsdu == &CanTP_State.Nsdu[1]);
 }
 
 void test_CanTp_GetVersionInfo(void)
