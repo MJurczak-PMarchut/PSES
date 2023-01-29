@@ -156,7 +156,8 @@ static CanTP_NSdu_Type* CanTP_GetFreeNsdu(PduIdType PduID)
 	{
 		//look for problems
 		pNsdu = &CanTP_State.Nsdu[nsdu_iter];
-		if((pNsdu->CanTp_NsduID == PduID) || (pNsdu->RxState.CanTp_RxState != CANTP_RX_WAIT) || (pNsdu->TxState.CanTp_TxState != CANTP_TX_WAIT)){
+		if(pNsdu->CanTp_NsduID == PduID){
+			//If PduID is already in use, gnore it
 			return NULL;
 		}
 	}
@@ -690,14 +691,13 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
     				retval = E_OK;
     			}
     			else{
+    				//We will need to send flow control
     			    CanPCI_Type FlowControl_PCI = {0};
     				//More expected
     			    pNsdu->RxState.CanTp_ExpectedCFNo++;
     				//check if FC needed
 					//We assume a buffer is locked so we did not lose any space
     				if(pNsdu->RxState.CanTp_NoOfBlocksTillCTS == 0){
-    					//We will need to send flow control
-						CanPCI_Type FC_Can_PCI = {0};
     					//We may require time so lets calculate how many block we can receive
     					required_blocks = buffer_size / 7;
     					// if non zero then we can at least receive one frame
