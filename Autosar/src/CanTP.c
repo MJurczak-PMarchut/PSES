@@ -297,7 +297,6 @@ static Std_ReturnType CanTP_NSDuTransmitHandler(PduIdType PduID){
 				for(uint8 data_iter = 0; data_iter < 7; data_iter++){
 					PduToBeSent.SduDataPtr[data_iter + 1] = PduToBeSent.SduDataPtr[data_iter];
 				}
-				pNsdu->TxState.CanTp_BlocksToFCFrame--;
 				pNsdu->TxState.CanTp_SN++;
 				pNsdu->TxState.CanTp_BytesSent += 7;
 				//pNsdu->TxState.CanTp_BytesSent += PduInfoCopy.SduLength;;
