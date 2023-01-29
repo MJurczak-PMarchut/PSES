@@ -103,10 +103,6 @@ typedef struct{
 
 
 
-//TIMERY!!!!!!!!!!!!!
-
-//KONIEC TIMEROW!!!!!!!!!!!!!!!!!!!
-
 static uint32 FC_Wait_frame_ctr;
 
 typedef enum{
@@ -224,7 +220,7 @@ static void* CanTP_CopyDefaultNsduConfig(CanTP_NSdu_Type *nsdu)
 
 	CanTP_MemCpy(&nsdu->N_As, &N_AsTimerDefault, sizeof(N_AsTimerDefault));
 	CanTP_MemCpy(&nsdu->N_Bs, &N_BsTimerDefault, sizeof(N_BsTimerDefault));
-	CanTP_MemCpy(&nsdu->N_Bs, &N_CsTimerDefault, sizeof(N_CsTimerDefault));
+	CanTP_MemCpy(&nsdu->N_Cs, &N_CsTimerDefault, sizeof(N_CsTimerDefault));
 
 	return nsdu;
 }
@@ -320,13 +316,13 @@ static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *C
 		return E_NOT_OK;
 	}
 	if((CanPCI->FS == FS_OVFLW) || (CanPCI->FS == FS_WAIT ) || (CanPCI->FS == FS_CTS)){
-		if(CanPCI->FS <= FS_CTS){
+		if(CanPCI->FS <= FS_CTS){ // @Mateusz this if checks the same condition as in the previous if
 			PduInfo.SduDataPtr = data;
 			PduInfo.SduDataPtr[0] = FlowControlFrame << 4; // FrameID
 			PduInfo.SduDataPtr[0] |= (CanPCI->FS & 0xF);
 			PduInfo.SduDataPtr[1] = CanPCI->BS;
 			PduInfo.SduDataPtr[2] = CanPCI->ST;
-			retval =  CanIf_Transmit(PduID, &PduInfo);;
+			retval =  CanIf_Transmit(PduID, &PduInfo);; // @Mateusz why double ;;?, what about SduLength?
 			if(retval == E_NOT_OK){
 				CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
 				pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
@@ -605,6 +601,7 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 	}
 	else
 	{
+		pNsdu->CanTp_NsduID = TxPduId;
 		//Multiple frames to be sent
 		Tmp_Pdu.SduLength = PduInfoPtr->SduLength;
 		BufReq_State = PduR_CanTpCopyTxData(TxPduId, &Tmp_Pdu, NULL, &Len_Pdu);

@@ -19,11 +19,15 @@
 TEST_LIST = {
 	// CanTP tests
     { "Test of CanTp_Init", test_CanTp_Init },
+    { "Test of CanTP_GetNsduFromPduID", test_CanTP_GetNsduFromPduID },
+    { "Test of CanTP_GetFreeNsdu", test_CanTP_GetFreeNsdu },
+    { "Test of CanTP_CopyDefaultNsduConfig", test_CanTP_CopyDefaultNsduConfig },
 	{ "Test of CanTp_GetVersionInfo", test_CanTp_GetVersionInfo },
 	{ "Test of CanTp_GetPCI", test_CanTp_GetPCI },
 	{ "Test of CanTp_RxIndication", test_CanTp_RxIndication },
 	{ "Test of CanTp_RxIndicationHandleSuspendedState", test_CanTp_RxIndicationHandleSuspendedState },
 	{ "Test of CanTp_FirstFrameReceived", test_CanTp_FirstFrameReceived },
+	{ "Test of CanTP_SendFlowControlFrame", test_CanTP_SendFlowControlFrame },
 	// CanTp_Timers tests
     { "Test of CanTp_TStart", test_CanTp_TStart },
 	{ "Test of CanTp_Timer_Incr", test_CanTp_Timer_Incr },
