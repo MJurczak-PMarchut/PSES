@@ -1330,8 +1330,8 @@ void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
 void CanTp_MainFunction(void){
 	//Just for linter
 	BufReq_ReturnType BufReq_State = BUFREQ_E_NOT_OK;
+
 	uint16 block_size = 0;
-	uint8 separation_time;
 
 	CanTp_Timer_type *N_Ar;
 	CanTp_Timer_type *N_Br;
@@ -1343,29 +1343,32 @@ void CanTp_MainFunction(void){
 
 	for(uint8 nsdu_iter = 0; nsdu_iter < NO_OF_NSDUS; nsdu_iter++)
 	{
-		if(CanTP_State.Nsdu[nsdu_iter].RxState.CanTp_RxState == CANTP_RX_SUSPENDED){
+		CanTP_NSdu_Type nsdu = CanTP_State.Nsdu[nsdu_iter];
+
+		if(nsdu.RxState.CanTp_RxState == CANTP_RX_SUSPENDED){
 			PduInfoType rxPdu = {0,0};
 			PduLengthType buffer_len;
-			BufReq_State = PduR_CanTpCopyRxData(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, &rxPdu, &buffer_len);
+			BufReq_State = PduR_CanTpCopyRxData(nsdu.CanTp_NsduID, &rxPdu, &buffer_len);
 			//enough buffer
 			if(BufReq_State == BUFREQ_OK)
 			{
-				if((buffer_len >=7) || (buffer_len >= (CanTP_State.Nsdu[nsdu_iter].RxState.CanTp_MessageLength - CanTP_State.Nsdu[nsdu_iter].RxState.CanTp_ReceivedBytes)))
+				if((buffer_len >=7) || (buffer_len >= (uint16)(nsdu.RxState.CanTp_MessageLength - nsdu.RxState.CanTp_ReceivedBytes)))
 				{
 					//FC(CTS)
 					//BS buffer_len / 7
+					nsdu.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
 				}
 			}
 		}
 		//static boolean N_Ar_timeout, N_Br_timeout, N_Cr_timeout;
 		//TODO Do stuff here
-		N_Ar = &CanTP_State.Nsdu[nsdu_iter].N_Ar;
-		N_Br = &CanTP_State.Nsdu[nsdu_iter].N_Br;
-		N_Cr = &CanTP_State.Nsdu[nsdu_iter].N_Cr;
+		N_Ar = &nsdu.N_Ar;
+		N_Br = &nsdu.N_Br;
+		N_Cr = &nsdu.N_Cr;
 
-		N_As = &CanTP_State.Nsdu[nsdu_iter].N_As;
-		N_Bs = &CanTP_State.Nsdu[nsdu_iter].N_Bs;
-		N_Cs = &CanTP_State.Nsdu[nsdu_iter].N_Cs;
+		N_As = &nsdu.N_As;
+		N_Bs = &nsdu.N_Bs;
+		N_Cs = &nsdu.N_Cs;
 
 		CanTp_Timer_Incr(N_Ar);
 		CanTp_Timer_Incr(N_Br);
@@ -1385,7 +1388,7 @@ void CanTp_MainFunction(void){
 
 
 				if(block_size > 0){
-					if(CanTP_SendFlowControlFrame(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, &FlowControl_PCI) == E_NOT_OK){
+					if(CanTP_SendFlowControlFrame(nsdu.CanTp_NsduID, &FlowControl_PCI) == E_NOT_OK){
 						CanTp_TReset(N_Ar);
 						CanTp_TReset(N_Br);
 						CanTp_TReset(N_Cr);
@@ -1403,7 +1406,7 @@ void CanTp_MainFunction(void){
 						CanTp_TReset(N_Cr);
 					}
 					else{
-						if(CanTP_SendFlowControlFrame(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, &FlowControl_PCI) == E_NOT_OK){
+						if(CanTP_SendFlowControlFrame(nsdu.CanTp_NsduID, &FlowControl_PCI) == E_NOT_OK){
 							CanTp_TReset(N_Ar);
 							CanTp_TReset(N_Br);
 							CanTp_TReset(N_Cr);
