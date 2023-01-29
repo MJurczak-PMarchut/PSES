@@ -311,8 +311,9 @@ static Std_ReturnType CanTP_NSDuTransmitHandler(PduIdType PduID){
 					pNsdu->TxState.CanTp_TxState = CANTP_TX_SUSPENDED;
 				}
 				else{
+					CanTP_CopyDefaultNsduConfig(pNsdu);
+					PduR_CanTpTxConfirmation(PduID, E_NOT_OK);
 					//Error
-
 				}
 			}
 			else{
