@@ -127,9 +127,10 @@ void test_CanTP_NSDuTransmitHandler(void)//ToDo
 	ret = CanTP_NSDuTransmitHandler(PduID);
 	TEST_CHECK(ret == E_NOT_OK);
 	// TxState = CANTP_TX_WAIT
-	nsdu->TxState.CanTp_TxState = CANTP_TX_WAIT;
 	PduID = 0x55;
 	nsdu = CanTP_GetFreeNsdu(PduID);
+	nsdu->TxState.CanTp_TxState = CANTP_TX_WAIT;
+	nsdu->CanTp_NsduID = PduID;
 	ret = CanTP_NSDuTransmitHandler(PduID);
 	TEST_CHECK(ret == E_OK);
 	// TxState = CANTP_TX_PROCESSING, BlocksToFCFrame = 0
