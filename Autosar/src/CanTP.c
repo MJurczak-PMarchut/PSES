@@ -103,10 +103,6 @@ typedef struct{
 
 
 
-//TIMERY!!!!!!!!!!!!!
-
-//KONIEC TIMEROW!!!!!!!!!!!!!!!!!!!
-
 static uint32 FC_Wait_frame_ctr;
 
 typedef enum{
@@ -605,6 +601,7 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 	}
 	else
 	{
+		pNsdu->CanTp_NsduID = TxPduId;
 		//Multiple frames to be sent
 		Tmp_Pdu.SduLength = PduInfoPtr->SduLength;
 		BufReq_State = PduR_CanTpCopyTxData(TxPduId, &Tmp_Pdu, NULL, &Len_Pdu);

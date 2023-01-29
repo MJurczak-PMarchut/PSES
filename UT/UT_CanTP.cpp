@@ -40,6 +40,17 @@ void test_CanTp_Init(void)
 	}
 }
 
+void test_CanTP_GetNsduFromPduID(void)
+{
+	CanTp_ConfigType CfgPtr = {};
+	PduIdType PduID = 0x34;
+	CanTP_NSdu_Type* pNsdu = NULL;
+	CanTp_Init(&CfgPtr);
+	CanTP_State.Nsdu[3].CanTp_NsduID = PduID;
+	pNsdu = CanTP_GetNsduFromPduID(PduID);
+	TEST_CHECK(pNsdu == &CanTP_State.Nsdu[3]);
+}
+
 void test_CanTp_GetVersionInfo(void)
 {
 	Std_VersionInfoType ver = {0,0,0,0,0,0,4,4,0};

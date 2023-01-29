@@ -19,6 +19,7 @@
 TEST_LIST = {
 	// CanTP tests
     { "Test of CanTp_Init", test_CanTp_Init },
+    { "Test of CanTP_GetNsduFromPduID", test_CanTP_GetNsduFromPduID },
 	{ "Test of CanTp_GetVersionInfo", test_CanTp_GetVersionInfo },
 	{ "Test of CanTp_GetPCI", test_CanTp_GetPCI },
 	{ "Test of CanTp_RxIndication", test_CanTp_RxIndication },
