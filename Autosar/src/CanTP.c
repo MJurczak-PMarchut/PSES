@@ -272,37 +272,41 @@ static Std_ReturnType CanTP_NSDuTransmitHandler(PduIdType PduID){
 	}
 	else{
 		//CF frame to be sent
-		PduInfoType PduInfoCopy;
-		BufReq_ReturnType Buf_Status;
-		PduLengthType buffer_size;
-		CanTP_MemSet(&PduInfoCopy, 0, sizeof(PduInfoCopy));
-		/*
-		 * [SWS_CanTp_00167] ⌈After a transmission request from upper layer, the CanTp
-		 * module shall start time-out N_Cs before the call of PduR_CanTpCopyTxData. If no
-		 * data is available before the timer elapsed, the CanTp module shall abort the
-		 * communication. ⌋ ( )
-		 * @Justyna
-		 */
-		Buf_Status = PduR_CanTpCopyTxData(PduID, &PduInfoCopy, NULL, &buffer_size);
-		if(Buf_Status == BUFREQ_OK){
-			PduInfoType PduToBeSent;
-			CanTP_MemSet(&PduToBeSent, 0, sizeof(PduToBeSent));
-			PduToBeSent.SduLength = 7;
-			//PduToBeSent.SduLength = PduInfoCopy.SduLength;
-			PduToBeSent.SduDataPtr[0] = ConsecutiveFrame << 4;
-			PduToBeSent.SduDataPtr[0] |= pNsdu->TxState.CanTp_SN & 0xF;
-			for(uint8 data_iter = 0; data_iter < 7; data_iter++){
-				PduToBeSent.SduDataPtr[data_iter + 1] = PduToBeSent.SduDataPtr[data_iter];
+		if(pNsdu->TxState.CanTp_TxState == CANTP_TX_PROCESSING){
+			PduInfoType PduInfoCopy;
+			BufReq_ReturnType Buf_Status;
+			PduLengthType buffer_size;
+			CanTP_MemSet(&PduInfoCopy, 0, sizeof(PduInfoCopy));
+			/*
+			 * [SWS_CanTp_00167] ⌈After a transmission request from upper layer, the CanTp
+			 * module shall start time-out N_Cs before the call of PduR_CanTpCopyTxData. If no
+			 * data is available before the timer elapsed, the CanTp module shall abort the
+			 * communication. ⌋ ( )
+			 * @Justyna
+			 */
+			Buf_Status = PduR_CanTpCopyTxData(PduID, &PduInfoCopy, NULL, &buffer_size);
+			if(Buf_Status == BUFREQ_OK){
+				PduInfoType PduToBeSent;
+				CanTP_MemSet(&PduToBeSent, 0, sizeof(PduToBeSent));
+				PduToBeSent.SduLength = 7;
+				//PduToBeSent.SduLength = PduInfoCopy.SduLength;
+				PduToBeSent.SduDataPtr[0] = ConsecutiveFrame << 4;
+				PduToBeSent.SduDataPtr[0] |= pNsdu->TxState.CanTp_SN & 0xF;
+				for(uint8 data_iter = 0; data_iter < 7; data_iter++){
+					PduToBeSent.SduDataPtr[data_iter + 1] = PduToBeSent.SduDataPtr[data_iter];
+				}
+				pNsdu->TxState.CanTp_BlocksToFCFrame--;
+				pNsdu->TxState.CanTp_SN++;
+				pNsdu->TxState.CanTp_BytesSent += 7;
+				//pNsdu->TxState.CanTp_BytesSent += PduInfoCopy.SduLength;;
+				CanIf_Transmit(PduID, &PduToBeSent);
+				pNsdu->TxState.CanTp_TxState = CANTP_TX_SUSPENDED;
+				retval = E_OK;
 			}
-			pNsdu->TxState.CanTp_BlocksToFCFrame--;
-			pNsdu->TxState.CanTp_SN++;
-			pNsdu->TxState.CanTp_BytesSent += 7;
-			//pNsdu->TxState.CanTp_BytesSent += PduInfoCopy.SduLength;;
-			CanIf_Transmit(PduID, &PduToBeSent);
-		}
-		else{
-			//Error
-			retval = E_NOT_OK;
+			else{
+				//Error
+				retval = E_NOT_OK;
+			}
 		}
 
 	}
@@ -1270,6 +1274,7 @@ void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
 	if(CanTP_State.CanTP_State == CANTP_OFF)
 	{
 		//report error
+		return;
 	}
 
 	else{
@@ -1289,12 +1294,12 @@ void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
 			//did we finish transmission ?
 			if(pNsdu->TxState.CanTp_BytesSent == pNsdu->TxState.CanTp_MsgLegth){
 				PduR_CanTpTxConfirmation(TxPduId, result);
-				CanTP_MemSet(&pNsdu->TxState, 0, sizeof(pNsdu->TxState));
-				pNsdu->TxState.CanTp_TxState= CANTP_TX_WAIT;
+				CanTP_CopyDefaultNsduConfig(pNsdu);
 			}
 			else{
 				//We are still transmitting
 				//@Justyna set timers
+				pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
 			}
 		}
 		else{
