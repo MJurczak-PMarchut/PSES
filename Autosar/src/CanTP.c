@@ -69,6 +69,9 @@ typedef struct{
     uint16 CanTp_ReceivedBytes;
     CanTp_RxState_Type CanTp_RxState;
     uint8 CanTp_NoOfBlocksTillCTS;
+	uint16 CanTpRxWftMax;
+	uint32 sTMin;
+	uint8 bs;
 } CanTp_RxStateVariablesType;
 
 typedef struct{
@@ -90,6 +93,7 @@ typedef struct{
 	CanTp_Timer_type N_As;
 	CanTp_Timer_type N_Bs;
 	CanTp_Timer_type N_Cs;
+	//ECUC_CanTp_00251
 } CanTP_NSdu_Type;
 
 typedef struct{
@@ -173,6 +177,7 @@ static CanTP_NSdu_Type* CanTP_GetFreeNsdu(PduIdType PduID)
 }
 
 
+
 static void* CanTP_MemSet(void* destination, int value, uint64 num)
 {
 	uint8* dest = (uint8*)destination;
@@ -182,6 +187,48 @@ static void* CanTP_MemSet(void* destination, int value, uint64 num)
 	}
 	return destination;
 }
+
+
+static void* CanTP_MemCpy(void* destination, void* source, uint64 num)
+{
+	uint8* dest = (uint8*)destination;
+	uint8* src =  (uint8*)source;
+	for(uint64 u64Iter = 0; u64Iter < num; u64Iter++)
+	{
+		dest[u64Iter] = src[u64Iter];
+	}
+	return destination;
+}
+
+
+static void* CanTP_CopyDefaultNsduConfig(CanTP_NSdu_Type *nsdu)
+{
+	CanTp_Timer_type N_ArTimerDefault = {TIMER_NOT_ACTIVE, 0, N_AR_TIMEOUT_VAL};
+	CanTp_Timer_type N_BrTimerDefault = {TIMER_NOT_ACTIVE, 0, N_BR_TIMEOUT_VAL};
+	CanTp_Timer_type N_CrTimerDefault = {TIMER_NOT_ACTIVE, 0, N_CR_TIMEOUT_VAL};
+
+	CanTp_Timer_type N_AsTimerDefault = {TIMER_NOT_ACTIVE, 0, N_AS_TIMEOUT_VAL};
+	CanTp_Timer_type N_BsTimerDefault = {TIMER_NOT_ACTIVE, 0, N_BS_TIMEOUT_VAL};
+	CanTp_Timer_type N_CsTimerDefault = {TIMER_NOT_ACTIVE, 0, N_CS_TIMEOUT_VAL};
+	//zero the data inside nsdu
+	CanTP_MemSet(&nsdu->RxState, 0, sizeof(CanTp_RxStateVariablesType));
+	CanTP_MemSet(&nsdu->TxState, 0, sizeof(CanTp_TxStateVariablesType));
+	nsdu->CanTp_NsduID = 0;
+
+	//reset all timers
+	//TODO @Justyna please check if we need to do anything else
+
+	CanTP_MemCpy(&nsdu->N_Ar, &N_ArTimerDefault, sizeof(N_ArTimerDefault));
+	CanTP_MemCpy(&nsdu->N_Br, &N_BrTimerDefault, sizeof(N_BrTimerDefault));
+	CanTP_MemCpy(&nsdu->N_Cr, &N_CrTimerDefault, sizeof(N_CrTimerDefault));
+
+	CanTP_MemCpy(&nsdu->N_As, &N_AsTimerDefault, sizeof(N_AsTimerDefault));
+	CanTP_MemCpy(&nsdu->N_Bs, &N_BsTimerDefault, sizeof(N_BsTimerDefault));
+	CanTP_MemCpy(&nsdu->N_Bs, &N_CsTimerDefault, sizeof(N_CsTimerDefault));
+
+	return nsdu;
+}
+
 
 /*
  * TODO Add brief
@@ -314,18 +361,8 @@ void CanTp_Init (const CanTp_ConfigType* CfgPtr)
 	CanTP_State.CanTP_State = CANTP_ON;
 	//And tx and rx is waiting
 	for(uint8 NsduIter = 0; NsduIter < NO_OF_NSDUS; NsduIter++){
-		CanTP_MemSet(&CanTP_State.Nsdu[NsduIter], 0, sizeof(CanTP_State.Nsdu[NsduIter]));
-		CanTP_State.Nsdu[NsduIter].RxState.CanTp_RxState = CANTP_RX_WAIT;
-		CanTP_State.Nsdu[NsduIter].TxState.CanTp_TxState = CANTP_TX_WAIT;
+		CanTP_CopyDefaultNsduConfig(&CanTP_State.Nsdu[NsduIter]);
 
-		//reset all timers
-		//TODO @Justyna please check if we need to do anything elese
-		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_As);
-		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Bs);
-		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Cs);
-		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Ar);
-		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Br);
-		CanTp_TReset(&CanTP_State.Nsdu[NsduIter].N_Cr);
 	}
 
 }
@@ -386,7 +423,6 @@ void CanTp_Shutdown (void)
 
 Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint16* value)
 {
-	CanTp_RxNSduType *nsdu;
 	uint16 val = 0;
 	Std_ReturnType ret = E_NOT_OK;
 	CanTP_NSdu_Type *pNsdu = NULL;
@@ -400,11 +436,11 @@ Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint
 		switch(parameter)
 		{
 			case TP_STMIN:
-				val = nsdu->sTMin;
+				val = pNsdu->RxState.sTMin;
 				ret = E_OK;
 				break;
 			case TP_BS:
-				val = nsdu->bs;
+				val = pNsdu->RxState.bs;
 				ret = E_OK;
 				break;
 			default:
@@ -434,7 +470,6 @@ Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
 
 Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, uint16 value)
 {
-	CanTp_RxNSduType *nsdu;
 	Std_ReturnType ret = E_NOT_OK;
 	CanTP_NSdu_Type *pNsdu = NULL;
 	pNsdu = CanTP_GetNsduFromPduID(id);
@@ -447,11 +482,11 @@ Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, ui
 		switch(parameter)
 		{
 			case TP_STMIN:
-				nsdu->sTMin= value;
+				pNsdu->RxState.sTMin = value;
 				ret = E_OK;
 				break;
 			case TP_BS:
-				nsdu->bs = value;
+				pNsdu->RxState.bs = value;
 				ret = E_OK;
 				break;
 			default:
@@ -923,6 +958,7 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 		FlowControl_PCI.FS = FS_OVFLW;
 		FlowControl_PCI.BS = buffer_size;
 		FlowControl_PCI.ST = 0;
+
 		CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
 		retval = E_NOT_OK;
 	}
@@ -983,7 +1019,8 @@ static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoT
 					FlowControl_PCI.ST = 0;
 					CanTP_SendFlowControlFrame(RxPduId, &FlowControl_PCI);
 				}
-
+				pNsdu->RxState.sTMin = FlowControl_PCI.ST;
+				pNsdu->RxState.bs = FlowControl_PCI.BS;
 				retval = E_OK;
 			}
 		}

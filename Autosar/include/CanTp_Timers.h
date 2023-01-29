@@ -12,8 +12,8 @@
 #define N_CS_TIMEOUT_VAL 100
 
 typedef enum{
-    TIMER_ACTIVE,
-    TIMER_NOT_ACTIVE
+    TIMER_NOT_ACTIVE = 0u,
+    TIMER_ACTIVE
 } timer_state_t;
 
 typedef struct{
