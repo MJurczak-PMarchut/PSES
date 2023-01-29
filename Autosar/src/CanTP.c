@@ -156,7 +156,8 @@ static CanTP_NSdu_Type* CanTP_GetFreeNsdu(PduIdType PduID)
 	{
 		//look for problems
 		pNsdu = &CanTP_State.Nsdu[nsdu_iter];
-		if((pNsdu->CanTp_NsduID == PduID) || (pNsdu->RxState.CanTp_RxState != CANTP_RX_WAIT) || (pNsdu->TxState.CanTp_TxState != CANTP_TX_WAIT)){
+		if(pNsdu->CanTp_NsduID == PduID){
+			//If PduID is already in use, gnore it
 			return NULL;
 		}
 	}
