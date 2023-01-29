@@ -691,14 +691,13 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
     				retval = E_OK;
     			}
     			else{
+    				//We will need to send flow control
     			    CanPCI_Type FlowControl_PCI = {0};
     				//More expected
     			    pNsdu->RxState.CanTp_ExpectedCFNo++;
     				//check if FC needed
 					//We assume a buffer is locked so we did not lose any space
     				if(pNsdu->RxState.CanTp_NoOfBlocksTillCTS == 0){
-    					//We will need to send flow control
-						CanPCI_Type FC_Can_PCI = {0};
     					//We may require time so lets calculate how many block we can receive
     					required_blocks = buffer_size / 7;
     					// if non zero then we can at least receive one frame
