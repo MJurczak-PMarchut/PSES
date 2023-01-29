@@ -272,7 +272,9 @@ static Std_ReturnType CanTP_NSDuTransmitHandler(PduIdType PduID){
 	}
 	else{
 		//CF frame to be sent
-		if(pNsdu->TxState.CanTp_TxState == CANTP_TX_PROCESSING){
+
+		if(pNsdu->TxState.CanTp_TxState == CANTP_TX_PROCESSING)
+		{
 			PduInfoType PduInfoCopy;
 			BufReq_ReturnType Buf_Status;
 			PduLengthType buffer_size;
@@ -299,9 +301,14 @@ static Std_ReturnType CanTP_NSDuTransmitHandler(PduIdType PduID){
 				pNsdu->TxState.CanTp_SN++;
 				pNsdu->TxState.CanTp_BytesSent += 7;
 				//pNsdu->TxState.CanTp_BytesSent += PduInfoCopy.SduLength;;
-				CanIf_Transmit(PduID, &PduToBeSent);
-				pNsdu->TxState.CanTp_TxState = CANTP_TX_SUSPENDED;
-				retval = E_OK;
+				retval = CanIf_Transmit(PduID, &PduToBeSent);
+				if(retval == E_OK){
+					pNsdu->TxState.CanTp_TxState = CANTP_TX_SUSPENDED;
+				}
+				else{
+					//Error
+
+				}
 			}
 			else{
 				//Error
@@ -828,6 +835,7 @@ static Std_ReturnType CanTp_FlowFrameReceived(PduIdType RxPduId, const PduInfoTy
 			switch(Can_PCI->FS){
 				case FS_CTS:
 					pNsdu->TxState.CanTp_BlocksToFCFrame = Can_PCI->BS;
+					pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
 					retval = E_OK;
 					//Todo @Paulina Send consecutive frame
 					break;
@@ -1299,7 +1307,14 @@ void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
 			else{
 				//We are still transmitting
 				//@Justyna set timers
-				pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+				pNsdu->TxState.CanTp_BlocksToFCFrame--;
+				if(pNsdu->TxState.CanTp_BlocksToFCFrame == 0)
+				{
+					pNsdu->TxState.CanTp_TxState = CANTP_TX_SUSPENDED;
+				}
+				else{
+					pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+				}
 			}
 		}
 		else{
