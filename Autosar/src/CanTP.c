@@ -1385,6 +1385,20 @@ void CanTp_MainFunction(void){
 
 	for(uint8 nsdu_iter = 0; nsdu_iter < NO_OF_NSDUS; nsdu_iter++)
 	{
+		if(CanTP_State.Nsdu[nsdu_iter].RxState.CanTp_RxState == CANTP_RX_SUSPENDED){
+			PduInfoType rxPdu = {0,0};
+			PduLengthType buffer_len;
+			BufReq_State = PduR_CanTpCopyRxData(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, &rxPdu, &buffer_len);
+			//enough buffer
+			if(BufReq_State == BUFREQ_OK)
+			{
+				if((buffer_len >=7) || (buffer_len >= (CanTP_State.Nsdu[nsdu_iter].RxState.CanTp_MessageLength - CanTP_State.Nsdu[nsdu_iter].RxState.CanTp_ReceivedBytes)))
+				{
+					//FC(CTS)
+					//BS buffer_len / 7
+				}
+			}
+		}
 		//static boolean N_Ar_timeout, N_Br_timeout, N_Cr_timeout;
 		//TODO Do stuff here
 		N_Ar = &CanTP_State.Nsdu[nsdu_iter].N_Ar;
@@ -1402,6 +1416,7 @@ void CanTp_MainFunction(void){
 		CanTp_Timer_Incr(N_As);
 		CanTp_Timer_Incr(N_Bs);
 		CanTp_Timer_Incr(N_Cs);
+
 
 		if(N_Br->state == TIMER_ACTIVE){
 			if(BufReq_State == BUFREQ_E_NOT_OK){
