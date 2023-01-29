@@ -316,13 +316,13 @@ static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *C
 		return E_NOT_OK;
 	}
 	if((CanPCI->FS == FS_OVFLW) || (CanPCI->FS == FS_WAIT ) || (CanPCI->FS == FS_CTS)){
-		if(CanPCI->FS <= FS_CTS){
+		if(CanPCI->FS <= FS_CTS){ // @Mateusz this if checks the same condition as in the previous if
 			PduInfo.SduDataPtr = data;
 			PduInfo.SduDataPtr[0] = FlowControlFrame << 4; // FrameID
 			PduInfo.SduDataPtr[0] |= (CanPCI->FS & 0xF);
 			PduInfo.SduDataPtr[1] = CanPCI->BS;
 			PduInfo.SduDataPtr[2] = CanPCI->ST;
-			retval =  CanIf_Transmit(PduID, &PduInfo);;
+			retval =  CanIf_Transmit(PduID, &PduInfo);; // @Mateusz why double ;;?, what about SduLength?
 			if(retval == E_NOT_OK){
 				CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
 				pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;

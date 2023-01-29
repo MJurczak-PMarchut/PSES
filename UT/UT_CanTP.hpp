@@ -18,6 +18,7 @@ void test_CanTp_GetPCI(void);
 void test_CanTp_RxIndication(void);
 void test_CanTp_RxIndicationHandleSuspendedState(void);
 void test_CanTp_FirstFrameReceived(void);
+void test_CanTP_SendFlowControlFrame(void);
 
 
 
