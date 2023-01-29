@@ -88,6 +88,32 @@ void test_CanTP_GetFreeNsdu(void)
 	TEST_CHECK(pNsdu == &CanTP_State.Nsdu[1]);
 }
 
+void test_CanTP_MemSet(void)
+{
+
+}
+
+void test_CanTP_MemCpy(void)
+{
+
+}
+
+void test_CanTP_CopyDefaultNsduConfig(void)
+{
+	CanTP_NSdu_Type nsdu = {0};
+	nsdu.N_Ar.counter = 0x21;
+	nsdu.N_Bs.state = TIMER_ACTIVE;
+	*(uint32*)(&nsdu.N_Cs.timeout) = 0x37;
+	nsdu.RxState.bs = 0x0F;
+	nsdu.TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+	CanTP_CopyDefaultNsduConfig(&nsdu);
+	TEST_CHECK(nsdu.N_Ar.counter == 0);
+	TEST_CHECK(nsdu.N_Bs.state == TIMER_NOT_ACTIVE);
+	TEST_CHECK(nsdu.N_Cs.timeout == N_CS_TIMEOUT_VAL);
+	TEST_CHECK(nsdu.RxState.bs == 0);
+	TEST_CHECK(nsdu.TxState.CanTp_TxState == 0);
+}
+
 void test_CanTp_GetVersionInfo(void)
 {
 	Std_VersionInfoType ver = {0,0,0,0,0,0,4,4,0};

@@ -220,7 +220,7 @@ static void* CanTP_CopyDefaultNsduConfig(CanTP_NSdu_Type *nsdu)
 
 	CanTP_MemCpy(&nsdu->N_As, &N_AsTimerDefault, sizeof(N_AsTimerDefault));
 	CanTP_MemCpy(&nsdu->N_Bs, &N_BsTimerDefault, sizeof(N_BsTimerDefault));
-	CanTP_MemCpy(&nsdu->N_Bs, &N_CsTimerDefault, sizeof(N_CsTimerDefault));
+	CanTP_MemCpy(&nsdu->N_Cs, &N_CsTimerDefault, sizeof(N_CsTimerDefault));
 
 	return nsdu;
 }
