@@ -45,14 +45,14 @@ typedef enum
 typedef enum {
     CANTP_RX_WAIT = 0x00u,
     CANTP_RX_PROCESSING,
-	CANTP_RX_SUSPENDED
+	CANTP_RX_SUSPENDED //When waiting for buffer or TxConfirmation on FC
 } CanTp_RxState_Type;
 
 
 typedef enum {
     CANTP_TX_WAIT = 0x00u,
     CANTP_TX_PROCESSING,
-	CANTP_TX_SUSPENDED
+	CANTP_TX_SUSPENDED //When waiting for confirmation or FC
 } CanTp_TxState_Type;
 
 typedef struct
@@ -102,11 +102,7 @@ typedef struct{
 } CanTP_InternalStateType;
 
 
-
-//TIMERY!!!!!!!!!!!!!
-
-//KONIEC TIMEROW!!!!!!!!!!!!!!!!!!!
-
+static uint32 FC_Wait_frame_ctr;
 
 
 typedef enum{
@@ -135,7 +131,7 @@ typedef struct{
     uint32 FrameLength;
 } CanPCI_Type;
 
-
+//Store information about CanTp and nsdu state
 static CanTP_InternalStateType CanTP_State = {0};
 
 static CanTP_NSdu_Type* CanTP_GetNsduFromPduID(PduIdType PduID)
@@ -152,7 +148,9 @@ static CanTP_NSdu_Type* CanTP_GetNsduFromPduID(PduIdType PduID)
 	return pNsdu;
 }
 
-
+/*
+ * Returns a pointer to Nsdu that is free and can be ussed
+ */
 static CanTP_NSdu_Type* CanTP_GetFreeNsdu(PduIdType PduID)
 {
 	CanTP_NSdu_Type *pNsdu;
@@ -177,7 +175,10 @@ static CanTP_NSdu_Type* CanTP_GetFreeNsdu(PduIdType PduID)
 }
 
 
-
+/*
+ * Sets a region of memory to a value
+ * (Sets each byte)
+ */
 static void* CanTP_MemSet(void* destination, int value, uint64 num)
 {
 	uint8* dest = (uint8*)destination;
@@ -188,7 +189,9 @@ static void* CanTP_MemSet(void* destination, int value, uint64 num)
 	return destination;
 }
 
-
+/*
+ * Copies regions of memory from source to destination
+ */
 static void* CanTP_MemCpy(void* destination, void* source, uint64 num)
 {
 	uint8* dest = (uint8*)destination;
@@ -200,7 +203,9 @@ static void* CanTP_MemCpy(void* destination, void* source, uint64 num)
 	return destination;
 }
 
-
+/*
+ * Restores default values to Nsdu
+ */
 static void* CanTP_CopyDefaultNsduConfig(CanTP_NSdu_Type *nsdu)
 {
 	CanTp_Timer_type N_ArTimerDefault = {TIMER_NOT_ACTIVE, 0, N_AR_TIMEOUT_VAL};
@@ -224,14 +229,14 @@ static void* CanTP_CopyDefaultNsduConfig(CanTP_NSdu_Type *nsdu)
 
 	CanTP_MemCpy(&nsdu->N_As, &N_AsTimerDefault, sizeof(N_AsTimerDefault));
 	CanTP_MemCpy(&nsdu->N_Bs, &N_BsTimerDefault, sizeof(N_BsTimerDefault));
-	CanTP_MemCpy(&nsdu->N_Bs, &N_CsTimerDefault, sizeof(N_CsTimerDefault));
+	CanTP_MemCpy(&nsdu->N_Cs, &N_CsTimerDefault, sizeof(N_CsTimerDefault));
 
 	return nsdu;
 }
 
 
 /*
- * TODO Add brief
+ * Handler that is called to check if we can send something (CF)
  */
 static Std_ReturnType CanTP_NSDuTransmitHandler(PduIdType PduID){
 	Std_ReturnType retval = E_NOT_OK;
@@ -321,6 +326,9 @@ static Std_ReturnType CanTP_NSDuTransmitHandler(PduIdType PduID){
 	return retval;
 }
 
+/*
+ * Send Flow Control frame according to information in PCI structure
+ */
 static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *CanPCI){
 	Std_ReturnType retval = E_NOT_OK;
 	PduInfoType PduInfo = {0};
@@ -331,30 +339,26 @@ static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *C
 		return E_NOT_OK;
 	}
 	if((CanPCI->FS == FS_OVFLW) || (CanPCI->FS == FS_WAIT ) || (CanPCI->FS == FS_CTS)){
-		if(CanPCI->FS <= FS_CTS){
-			PduInfo.SduDataPtr = data;
-			PduInfo.SduDataPtr[0] = FlowControlFrame << 4; // FrameID
-			PduInfo.SduDataPtr[0] |= (CanPCI->FS & 0xF);
-			PduInfo.SduDataPtr[1] = CanPCI->BS;
-			PduInfo.SduDataPtr[2] = CanPCI->ST;
-			retval =  CanIf_Transmit(PduID, &PduInfo);;
-			if(retval == E_NOT_OK){
-				CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
-				pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
-				PduR_CanTpRxIndication(PduID, E_NOT_OK);
-			}
-			else{
-	            CanTp_TStart(&pNsdu->N_Ar);
-	            if(CanPCI->FS == FS_CTS){
-	                CanTp_TStart(&pNsdu->N_Cr);
-	            }
-	            else if(CanPCI->FS == FS_WAIT ){
-	                CanTp_TStart(&pNsdu->N_Br);
-	            }
-			}
+		PduInfo.SduDataPtr = data;
+		PduInfo.SduDataPtr[0] = FlowControlFrame << 4; // FrameID
+		PduInfo.SduDataPtr[0] |= (CanPCI->FS & 0xF);
+		PduInfo.SduDataPtr[1] = CanPCI->BS;
+		PduInfo.SduDataPtr[2] = CanPCI->ST;
+		PduInfo.SduLength = sizeof(data);
+		retval =  CanIf_Transmit(PduID, &PduInfo);
+		if(retval == E_NOT_OK){
+			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+			PduR_CanTpRxIndication(PduID, E_NOT_OK);
 		}
 		else{
-			retval = E_NOT_OK;
+			CanTp_TStart(&pNsdu->N_Ar);
+			if(CanPCI->FS == FS_CTS){
+				CanTp_TStart(&pNsdu->N_Cr);
+			}
+			else if(CanPCI->FS == FS_WAIT ){
+				CanTp_TStart(&pNsdu->N_Br);
+			}
 		}
 	}
 	else{
@@ -363,7 +367,9 @@ static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *C
 	return retval;
 }
 
-
+/*
+ * Initializes the CanTP module
+ */
 void CanTp_Init (const CanTp_ConfigType* CfgPtr)
 {
 	//Init all to 0
@@ -378,6 +384,9 @@ void CanTp_Init (const CanTp_ConfigType* CfgPtr)
 
 }
 
+/*
+ * returns a struct with version info of CanTP module
+ */
 void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo)
 {
 	if(versioninfo != NULL)
@@ -394,6 +403,9 @@ void CanTp_GetVersionInfo ( Std_VersionInfoType* versioninfo)
 	}
 }
 
+/*
+ * Cancels transmission
+ */
 Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 {
 	Std_ReturnType ret = E_NOT_OK;
@@ -405,9 +417,7 @@ Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 	if(CanTP_State.CanTP_State == CANTP_ON)
 	{
 		PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
-//JUSTYNA 1.czy tutaj to ma buc w tej petli for?
-		//2. zakomentowuje bo mi tu bledy wychodza i nwm ocb z tym Nsdu
-		CanTP_MemSet(&pNsdu, 0, sizeof(CanTP_NSdu_Type));
+		CanTP_CopyDefaultNsduConfig(pNsdu);
 		pNsdu->TxState.CanTp_TxState = CANTP_TX_WAIT;
 		CanTp_TReset(&pNsdu->N_As);
 		CanTp_TReset(&pNsdu->N_Bs);
@@ -417,6 +427,9 @@ Std_ReturnType CanTp_CancelTransmit (PduIdType TxPduId)
 	return ret;
 }
 
+/*
+ * Turns off CanTP module
+ */
 void CanTp_Shutdown (void)
 {
 	//TODO Stop all connections
@@ -438,6 +451,10 @@ void CanTp_Shutdown (void)
 	CanTP_State.CanTP_State = CANTP_OFF;
 }
 
+
+/*
+ * Returns a parameter for rx connection
+ */
 Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint16* value)
 {
 	uint16 val = 0;
@@ -468,6 +485,9 @@ Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint
 	return ret;
 }
 
+/*
+ * Cancels receive process
+ */
 Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
 {
 	Std_ReturnType ret = E_NOT_OK;
@@ -478,6 +498,7 @@ Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
 	}
 	if(CanTP_State.CanTP_State == CANTP_ON)
 	{
+		CanTP_CopyDefaultNsduConfig(pNsdu);
 		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 		PduR_CanTpRxConfirmation(RxPduId, E_NOT_OK);
 		CanTP_MemSet(&pNsdu, 0, sizeof(CanTP_NSdu_Type));
@@ -490,6 +511,9 @@ Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
 	return ret;
 }
 
+/*
+ * Changes a rx connection parameter, assumed to be unused as it is optional
+ */
 Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, uint16 value)
 {
 	Std_ReturnType ret = E_NOT_OK;
@@ -518,6 +542,10 @@ Std_ReturnType CanTp_ChangeParameter(PduIdType id, TPParameterType parameter, ui
 	return ret;
 }
 
+
+/*
+ * Transmits or starts a transission of PDU
+ */
 Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 {
     Std_ReturnType tmp_return = E_NOT_OK;
@@ -631,6 +659,7 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 	}
 	else
 	{
+		pNsdu->CanTp_NsduID = TxPduId;
 		//Multiple frames to be sent
 		Tmp_Pdu.SduLength = PduInfoPtr->SduLength;
 		BufReq_State = PduR_CanTpCopyTxData(TxPduId, &Tmp_Pdu, NULL, &Len_Pdu);
@@ -707,8 +736,7 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 
 
 /*
- * TODO Add brief
- * Handle Single frame reception
+ * Handle Consecutive frame reception according to input parameters and internal state
  */
 static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const PduInfoType *PduInfoPtr, CanPCI_Type *Can_PCI)
 {
@@ -824,8 +852,7 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
     return retval;
 }
 /*
- * TODO Add brief
- * Handle Single frame reception
+ * Handle Flow Control frame reception according to input parameters and internal state
  */
 static Std_ReturnType CanTp_FlowFrameReceived(PduIdType RxPduId, const PduInfoType *PduInfoPtr, CanPCI_Type *Can_PCI)
 {
@@ -883,8 +910,7 @@ static Std_ReturnType CanTp_FlowFrameReceived(PduIdType RxPduId, const PduInfoTy
 	return retval;
 }
 /*
- * TODO Add brief
- * Handle Single frame reception
+ * Handle Single frame reception according to input parameters and internal state
  */
 static Std_ReturnType CanTp_SingleFrameReceived(PduIdType RxPduId, const PduInfoType *PduInfoPtr, CanPCI_Type *Can_PCI)
 {
@@ -935,9 +961,7 @@ static Std_ReturnType CanTp_SingleFrameReceived(PduIdType RxPduId, const PduInfo
 }
 
 /*
- * TODO Add brief
- * Handle first frame reception
- * TODO Handle FirstFrame reception
+ * Handle first frame reception according to input parameters and internal state
  */
 static Std_ReturnType CanTp_FirstFrameReceived(PduIdType RxPduId, const PduInfoType *PduInfoPtr, CanPCI_Type *Can_PCI)
 {
@@ -1126,6 +1150,10 @@ static Std_ReturnType CanTp_GetPCI(const PduInfoType* PduInfoPtr, CanPCI_Type* C
 	return ret;
 }
 
+
+/*
+ * Handle Rx indication if CanTP rx is in Wait state
+ */
 static void CanTp_RxIndicationHandleWaitState(PduIdType RxPduId, const PduInfoType* PduInfoPtr, CanPCI_Type *Can_PCI)
 {
 	// In wait state we should only receive start of communication or flow control frame if we are waiting for it
@@ -1154,11 +1182,14 @@ static void CanTp_RxIndicationHandleWaitState(PduIdType RxPduId, const PduInfoTy
 	if(retval != E_OK)
 	{
 		//report error or abort
-		CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+		CanTP_CopyDefaultNsduConfig(pNsdu);
 		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 	}
 }
 
+/*
+ * Handle Rx indication if CanTP rx is in Processing state
+ */
 static void CanTp_RxIndicationHandleProcessingState(PduIdType RxPduId, const PduInfoType* PduInfoPtr, CanPCI_Type *Can_PCI)
 {
 	/*
@@ -1205,11 +1236,14 @@ static void CanTp_RxIndicationHandleProcessingState(PduIdType RxPduId, const Pdu
 	if(retval != E_OK)
 	{
 		//report error or abort
-		CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+		CanTP_CopyDefaultNsduConfig(pNsdu);
 		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 	}
 }
 
+/*
+ *Handle Rx indication if CanTP rx is in Suspended state (waits for buffer)
+ */
 static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduInfoType* PduInfoPtr, CanPCI_Type *Can_PCI)
 {
 	//Same as processing (N_Br timer expired and not enough buffer space)
@@ -1249,11 +1283,16 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 	if(retval != E_OK)
 	{
 		//report error or abort
-		CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+		CanTP_CopyDefaultNsduConfig(pNsdu);
 		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 	}
 }
 
+/*
+ *[SWS_CanTp_00078] ⌈For reception indication, the CanTp module shall provide
+ * CanTp_RxIndication().⌋ ( )
+ *
+ */
 void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
 {
 
@@ -1296,7 +1335,7 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
 
 
 /*
- * TODO Add brief
+ *
  * [SWS_CanTp_00076] ⌈For confirmation calls, the CanTp module shall provide the
  * function CanTp_TxConfirmation().⌋ ( )
  *

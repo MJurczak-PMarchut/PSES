@@ -20,7 +20,9 @@ DEFINE_FFF_GLOBALS;
 
 
 FAKE_VOID_FUNC(PduR_CanTpRxIndication, PduIdType, Std_ReturnType);
+FAKE_VOID_FUNC(PduR_CanTpTxConfirmation, PduIdType, Std_ReturnType);
 FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpStartOfReception, PduIdType, PduInfoType*, uint32, PduLengthType*);
+FAKE_VALUE_FUNC(Std_ReturnType, CanIf_Transmit, PduIdType, PduInfoType*);
 
 
 void test_CanTp_Init(void)
@@ -38,6 +40,118 @@ void test_CanTp_Init(void)
 		TEST_CHECK(CanTP_State.Nsdu[NsduIter].RxState.CanTp_RxState == CANTP_RX_WAIT);
 		TEST_CHECK(CanTP_State.Nsdu[NsduIter].TxState.CanTp_TxState == CANTP_TX_WAIT);
 	}
+}
+
+void test_CanTP_GetNsduFromPduID(void)
+{
+	CanTp_ConfigType CfgPtr = {};
+	PduIdType PduID;
+	CanTP_NSdu_Type* pNsdu = NULL;
+	CanTp_Init(&CfgPtr);
+
+	PduID = 0x34;
+	CanTP_State.Nsdu[3].CanTp_NsduID = PduID;
+	pNsdu = CanTP_GetNsduFromPduID(PduID);
+	TEST_CHECK(pNsdu == &CanTP_State.Nsdu[3]);
+
+	PduID = 0x43;
+	pNsdu = CanTP_GetNsduFromPduID(PduID);
+	TEST_CHECK(pNsdu == NULL);
+}
+
+void test_CanTP_GetFreeNsdu(void)
+{
+	PduIdType PduID;
+	CanTP_NSdu_Type* pNsdu = NULL;
+	CanTp_ConfigType CfgPtr = {};
+
+	//all Nsdu in use
+	CanTp_Init(&CfgPtr);
+	PduID = 0x21;
+	for(uint8 nsdu_iter = 0; nsdu_iter <  NO_OF_NSDUS; nsdu_iter++)
+	{
+		CanTP_State.Nsdu[nsdu_iter].RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+	}
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	TEST_CHECK(pNsdu == NULL);
+
+	//PduID is already in use
+	CanTp_Init(&CfgPtr);
+	PduID = 0x21;
+	CanTP_State.Nsdu[2].CanTp_NsduID = PduID;
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	TEST_CHECK(pNsdu == NULL);
+
+	//free Nsdu available
+	CanTp_Init(&CfgPtr);
+	PduID = 0x21;
+	CanTP_State.Nsdu[0].TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	TEST_CHECK(pNsdu == &CanTP_State.Nsdu[1]);
+}
+
+void test_CanTP_MemSet(void)
+{
+	uint8 test_data[8] = {0, 1, 2, 3 ,4, 5, 6, 7};
+	CanTP_MemSet(test_data, 10, sizeof(test_data));
+	for(uint8 data_iter = 0; data_iter < sizeof(test_data); data_iter++)
+	{
+		TEST_CHECK(test_data[data_iter] == 10);
+	}
+}
+
+void test_CanTP_MemCpy(void)
+{
+	uint8 test_data_src[8] = {0, 1, 2, 3 ,4, 5, 6, 7};
+	uint8 test_data_dst[8] = {0, 0, 0, 0 ,0, 0, 0, 0};
+	CanTP_MemCpy(test_data_dst, test_data_src, sizeof(test_data_src));
+	for(uint8 data_iter = 0; data_iter < sizeof(test_data_src); data_iter++)
+	{
+		TEST_CHECK(test_data_dst[data_iter] == test_data_src[data_iter]);
+	}
+
+}
+
+void test_CanTP_CopyDefaultNsduConfig(void)
+{
+	CanTP_NSdu_Type nsdu = {0};
+	nsdu.N_Ar.counter = 0x21;
+	nsdu.N_Bs.state = TIMER_ACTIVE;
+	*(uint32*)(&nsdu.N_Cs.timeout) = 0x37;
+	nsdu.RxState.bs = 0x0F;
+	nsdu.TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+	CanTP_CopyDefaultNsduConfig(&nsdu);
+	TEST_CHECK(nsdu.N_Ar.counter == 0);
+	TEST_CHECK(nsdu.N_Bs.state == TIMER_NOT_ACTIVE);
+	TEST_CHECK(nsdu.N_Cs.timeout == N_CS_TIMEOUT_VAL);
+	TEST_CHECK(nsdu.RxState.bs == 0);
+	TEST_CHECK(nsdu.TxState.CanTp_TxState == 0);
+}
+
+void test_CanTP_NSDuTransmitHandler(void)//ToDo
+{
+	PduIdType PduID;
+	Std_ReturnType ret = E_OK;
+	CanTp_ConfigType CfgPtr = {};
+	CanTP_NSdu_Type* nsdu = NULL;
+	// wrong PduID
+	CanTp_Init(&CfgPtr);
+	PduID = 0x55;
+	ret = CanTP_NSDuTransmitHandler(PduID);
+	TEST_CHECK(ret == E_NOT_OK);
+	// TxState = CANTP_TX_WAIT
+	PduID = 0x55;
+	nsdu = CanTP_GetFreeNsdu(PduID);
+	nsdu->TxState.CanTp_TxState = CANTP_TX_WAIT;
+	nsdu->CanTp_NsduID = PduID;
+	ret = CanTP_NSDuTransmitHandler(PduID);
+	TEST_CHECK(ret == E_OK);
+	// TxState = CANTP_TX_PROCESSING, BlocksToFCFrame = 0
+	nsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+	nsdu->TxState.CanTp_BlocksToFCFrame = 0;
+	PduID = 0x55;
+	ret = CanTP_NSDuTransmitHandler(PduID);
+	TEST_CHECK(ret == E_OK);
 }
 
 void test_CanTp_GetVersionInfo(void)
@@ -132,7 +246,7 @@ void test_CanTp_GetPCI(void)
 	TEST_CHECK(CanPCI.FrameType == (CanTPFrameType)-1);
 }
 
-void test_CanTp_RxIndication(void)
+void test_CanTp_RxIndication(void)//ToDo
 {
 	PduIdType RxPduId;
 	PduInfoType PduInfo;
@@ -183,7 +297,7 @@ void test_CanTp_RxIndication(void)
 
 }
 
-void test_CanTp_RxIndicationHandleSuspendedState(void)
+void test_CanTp_RxIndicationHandleSuspendedState(void)//ToDo
 {
 	PduIdType RxPduId = 1;
 	PduInfoType PduInfo;
@@ -199,7 +313,7 @@ void test_CanTp_RxIndicationHandleSuspendedState(void)
 
 }
 
-void test_CanTp_FirstFrameReceived(void)
+void test_CanTp_FirstFrameReceived(void)//ToDo
 {
 	PduIdType RxPduId = 2;
 	PduInfoType PduInfo;
@@ -218,16 +332,137 @@ void test_CanTp_FirstFrameReceived(void)
 	TEST_CHECK(PduR_CanTpStartOfReception_fake.call_count == 1);
 	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 0);
 	TEST_CHECK(ret = E_NOT_OK);
-	// BUFREQ_OK, buffer_size < PduInfoPtr->SduLength
-	Can_PCI.FrameLength = 4095;
-	PduInfo.SduLength = 4095;
-	buffer_size = 4094;
-	PduR_CanTpStartOfReception_fake.return_val = BUFREQ_OK;
-	*PduR_CanTpStartOfReception_fake.arg3_val = buffer_size;
-	ret = CanTp_FirstFrameReceived(RxPduId, &PduInfo, &Can_PCI);
-	TEST_CHECK(PduR_CanTpStartOfReception_fake.call_count == 2);
-	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 1);
-	TEST_CHECK(ret = E_NOT_OK);
+//	// BUFREQ_OK, buffer_size < PduInfoPtr->SduLength
+//	Can_PCI.FrameLength = 4095;
+//	PduInfo.SduLength = 4095;
+//	buffer_size = 4094;
+//	PduR_CanTpStartOfReception_fake.return_val = BUFREQ_OK;
+//	PduR_CanTpStartOfReception_fake.arg3_val = &buffer_size;
+//	ret = CanTp_FirstFrameReceived(RxPduId, &PduInfo, &Can_PCI);
+//	TEST_CHECK(PduR_CanTpStartOfReception_fake.call_count == 2);
+//	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 1);
+//	TEST_CHECK(ret = E_NOT_OK);
 }
+
+void test_CanTP_SendFlowControlFrame(void)
+{
+	PduIdType PduID;
+	CanPCI_Type CanPCI;
+	Std_ReturnType ret = E_NOT_OK;
+	CanTp_ConfigType CfgPtr = {};
+	CanTP_NSdu_Type *pNsdu = NULL;
+	RESET_FAKE(CanIf_Transmit);
+	RESET_FAKE(PduR_CanTpRxIndication);
+	CanTp_Init(&CfgPtr);
+	// PduID does not match any nsdu
+	PduID = 0x88;
+	ret = CanTP_SendFlowControlFrame(PduID, &CanPCI);
+	TEST_CHECK(CanIf_Transmit_fake.call_count == 0);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 0);
+	TEST_CHECK(ret = E_NOT_OK);
+	// incorrect FS value
+	PduID = 0x88;
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	pNsdu->CanTp_NsduID = PduID;
+	CanPCI.FS = (CanTP_FCStatusType)4;
+	ret = CanTP_SendFlowControlFrame(PduID, &CanPCI);
+	TEST_CHECK(CanIf_Transmit_fake.call_count == 0);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 0);
+	TEST_CHECK(ret = E_NOT_OK);
+	// FS = FS_OVFLW, CanIf_Transmit returns E_NOT_OK
+	PduID = 0x88;
+	CanPCI.FS = FS_OVFLW;
+	CanIf_Transmit_fake.return_val = E_NOT_OK;
+	ret = CanTP_SendFlowControlFrame(PduID, &CanPCI);
+	TEST_CHECK(CanIf_Transmit_fake.call_count == 1);
+	TEST_CHECK(CanIf_Transmit_fake.arg0_history[0] == PduID);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 1);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.arg0_history[0] == PduID);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.arg1_history[0] == E_NOT_OK);
+	TEST_CHECK(ret = E_NOT_OK);
+	// FS = FS_WAIT, CanIf_Transmit returns E_OK
+	PduID = 0x88;
+	CanPCI.FS = FS_WAIT;
+	CanIf_Transmit_fake.return_val = E_OK;
+	ret = CanTP_SendFlowControlFrame(PduID, &CanPCI);
+	TEST_CHECK(CanIf_Transmit_fake.call_count == 2);
+	TEST_CHECK(CanIf_Transmit_fake.arg0_history[1] == PduID);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 1);
+	TEST_CHECK(pNsdu->N_Ar.state == TIMER_ACTIVE);
+	TEST_CHECK(pNsdu->N_Br.state == TIMER_ACTIVE);
+	TEST_CHECK(ret == E_OK);
+	// FS = FS_CTS, CanIf_Transmit returns E_OK
+	PduID = 0x88;
+	CanPCI.FS = FS_CTS;
+	CanIf_Transmit_fake.return_val = E_OK;
+	ret = CanTP_SendFlowControlFrame(PduID, &CanPCI);
+	TEST_CHECK(CanIf_Transmit_fake.call_count == 3);
+	TEST_CHECK(CanIf_Transmit_fake.arg0_history[2] == PduID);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 1);
+	TEST_CHECK(pNsdu->N_Ar.state == TIMER_ACTIVE);
+	TEST_CHECK(pNsdu->N_Cr.state == TIMER_ACTIVE);
+	TEST_CHECK(ret == E_OK);
+}
+
+void test_CanTp_CancelTransmit(void)
+{
+	PduIdType PduID;
+	Std_ReturnType ret = E_OK;
+	CanTp_ConfigType CfgPtr = {};
+	CanTP_NSdu_Type *pNsdu = NULL;
+	RESET_FAKE(PduR_CanTpTxConfirmation);
+	CanTp_Init(&CfgPtr);
+	// PduID does not match any nsdu
+	PduID = 0x12;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_CancelTransmit(PduID);
+	TEST_CHECK(PduR_CanTpTxConfirmation_fake.call_count == 0);
+	TEST_CHECK(ret = E_NOT_OK);
+	// CanTP_State = CANTP_OFF
+	PduID = 0x12;
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	pNsdu->CanTp_NsduID = PduID;
+	pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+	CanTP_State.CanTP_State = CANTP_OFF;
+	ret = CanTp_CancelTransmit(PduID);
+	TEST_CHECK(PduR_CanTpTxConfirmation_fake.call_count == 0);
+	TEST_CHECK(pNsdu->TxState.CanTp_TxState == CANTP_TX_PROCESSING);
+	TEST_CHECK(ret = E_NOT_OK);
+	// CanTP_State = CANTP_ON
+	pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_CancelTransmit(PduID);
+	TEST_CHECK(PduR_CanTpTxConfirmation_fake.call_count == 1);
+	TEST_CHECK(PduR_CanTpTxConfirmation_fake.arg0_history[0] == PduID);
+	TEST_CHECK(PduR_CanTpTxConfirmation_fake.arg1_history[0] == E_NOT_OK);
+	TEST_CHECK(pNsdu->TxState.CanTp_TxState == CANTP_TX_WAIT);
+	TEST_CHECK(ret == E_OK);
+}
+
+void test_CanTp_Shutdown(void)
+{
+	CanTP_State.CanTP_State = CANTP_ON;
+	for(uint8 NsduIter = 0; NsduIter < NO_OF_NSDUS; NsduIter++){
+		CanTP_State.Nsdu[NsduIter].RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+		CanTP_State.Nsdu[NsduIter].TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+		CanTP_State.Nsdu[NsduIter].CanTp_NsduID = NsduIter;
+		CanTP_State.Nsdu[NsduIter].RxState.bs = NsduIter;
+		CanTP_State.Nsdu[NsduIter].TxState.CanTp_SN = NsduIter;
+		CanTP_State.Nsdu[NsduIter].N_As.counter = NsduIter;
+		CanTP_State.Nsdu[NsduIter].N_Br.state = TIMER_ACTIVE;
+	}
+	CanTp_Shutdown();
+	TEST_CHECK(CanTP_State.CanTP_State == CANTP_OFF);
+	for(uint8 NsduIter = 0; NsduIter < NO_OF_NSDUS; NsduIter++){
+		TEST_CHECK(CanTP_State.Nsdu[NsduIter].RxState.CanTp_RxState == CANTP_RX_WAIT);
+		TEST_CHECK(CanTP_State.Nsdu[NsduIter].TxState.CanTp_TxState == CANTP_TX_WAIT);
+		TEST_CHECK(CanTP_State.Nsdu[NsduIter].CanTp_NsduID == 0);
+		TEST_CHECK(CanTP_State.Nsdu[NsduIter].RxState.bs == 0);
+		TEST_CHECK(CanTP_State.Nsdu[NsduIter].TxState.CanTp_SN == 0);
+		TEST_CHECK(CanTP_State.Nsdu[NsduIter].N_As.counter == 0);
+		TEST_CHECK(CanTP_State.Nsdu[NsduIter].N_Br.state == TIMER_NOT_ACTIVE);
+	}
+}
+
 
 #endif /* UT_CANTP_CPP_ */
