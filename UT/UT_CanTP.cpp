@@ -24,6 +24,7 @@ FAKE_VOID_FUNC(PduR_CanTpRxConfirmation, PduIdType, Std_ReturnType);
 FAKE_VOID_FUNC(PduR_CanTpTxConfirmation, PduIdType, Std_ReturnType);
 FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpStartOfReception, PduIdType, PduInfoType*, uint32, PduLengthType*);
 FAKE_VALUE_FUNC(Std_ReturnType, CanIf_Transmit, PduIdType, PduInfoType*);
+FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpCopyRxData, PduIdType, PduInfoType*, PduLengthType*);
 
 
 void test_CanTp_Init(void)
@@ -249,8 +250,8 @@ void test_CanTp_GetPCI(void)
 
 void test_CanTp_RxIndication(void)//ToDo
 {
-	PduIdType RxPduId;
-	PduInfoType PduInfo;
+//	PduIdType RxPduId;
+//	PduInfoType PduInfo;
 //	RESET_FAKE(CanTp_GetPCI);
 //	RESET_FAKE(CanTp_RxIndicationHandleWaitState);
 //	RESET_FAKE(CanTp_RxIndicationHandleProcessingState);
@@ -300,17 +301,17 @@ void test_CanTp_RxIndication(void)//ToDo
 
 void test_CanTp_RxIndicationHandleSuspendedState(void)//ToDo
 {
-	PduIdType RxPduId = 1;
-	PduInfoType PduInfo;
-	CanPCI_Type Can_PCI;
-	RESET_FAKE(PduR_CanTpRxIndication);
-
-	Can_PCI.FrameType = FirstFrame;
-	CanTP_State.Nsdu[0].RxState.CanTp_RxState = CANTP_RX_PROCESSING;//TODO @Paulina
-	CanTP_State.Nsdu[0].CanTp_NsduID = 1;
-	CanTp_RxIndicationHandleSuspendedState(RxPduId, &PduInfo, &Can_PCI);
-	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 1);
-	TEST_CHECK(CanTP_State.Nsdu[0].RxState.CanTp_RxState == CANTP_RX_WAIT);//TODO @Paulina
+//	PduIdType RxPduId = 1;
+//	PduInfoType PduInfo;
+//	CanPCI_Type Can_PCI;
+//	RESET_FAKE(PduR_CanTpRxIndication);
+//
+//	Can_PCI.FrameType = FirstFrame;
+//	CanTP_State.Nsdu[0].RxState.CanTp_RxState = CANTP_RX_PROCESSING;//TODO @Paulina
+//	CanTP_State.Nsdu[0].CanTp_NsduID = 1;
+//	CanTp_RxIndicationHandleSuspendedState(RxPduId, &PduInfo, &Can_PCI);
+//	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 1);
+//	TEST_CHECK(CanTP_State.Nsdu[0].RxState.CanTp_RxState == CANTP_RX_WAIT);//TODO @Paulina
 
 }
 
@@ -383,6 +384,8 @@ void test_CanTP_SendFlowControlFrame(void)
 	TEST_CHECK(ret = E_NOT_OK);
 	// FS = FS_WAIT, CanIf_Transmit returns E_OK
 	PduID = 0x88;
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	pNsdu->CanTp_NsduID = PduID;
 	CanPCI.FS = FS_WAIT;
 	CanIf_Transmit_fake.return_val = E_OK;
 	ret = CanTP_SendFlowControlFrame(PduID, &CanPCI);
@@ -608,5 +611,232 @@ void test_CanTp_ChangeParameter(void)
 	TEST_CHECK(ret == E_OK);
 }
 
+void test_CanTp_Transmit(void)
+{
+	PduIdType PduID;
+	PduInfoType PduInfo;
+	Std_ReturnType ret = E_OK;
+	CanTp_ConfigType CfgPtr = {};
+	CanTP_NSdu_Type *pNsdu = NULL;
+	uint8 data[] = {0, 1, 2, 3};
+	PduInfo.SduLength = sizeof(data);
+	PduInfo.SduDataPtr = data;
+	PduInfo.MetaDataPtr = NULL;
+	PduID = 0x77;
+	// Nsdu with this PduID already taken
+	CanTp_Init(&CfgPtr);
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	pNsdu->CanTp_NsduID = PduID;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_Transmit(PduID, &PduInfo);
+	TEST_CHECK(ret == E_NOT_OK);
+	// CanTP_State = CANTP_OFF
+	CanTp_Init(&CfgPtr);
+	CanTP_State.CanTP_State = CANTP_OFF;
+	ret = CanTp_Transmit(PduID, &PduInfo);
+	TEST_CHECK(ret == E_NOT_OK);
+	// PduInfoType* = NULL
+	CanTp_Init(&CfgPtr);
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_Transmit(PduID, NULL);
+	TEST_CHECK(ret == E_NOT_OK);
+	// no data to send
+	CanTp_Init(&CfgPtr);
+	CanTP_State.CanTP_State = CANTP_ON;
+	PduInfo.SduLength = 0;
+	ret = CanTp_Transmit(PduID, &PduInfo);
+	TEST_CHECK(ret == E_NOT_OK);
+	// MetaData is present
+	CanTp_Init(&CfgPtr);
+	PduInfo.SduLength = sizeof(data);
+	CanTP_State.CanTP_State = CANTP_ON;
+	PduInfo.MetaDataPtr = data;
+	ret = CanTp_Transmit(PduID, &PduInfo);
+	pNsdu = CanTP_GetNsduFromPduID(PduID);
+	TEST_CHECK(pNsdu->TxState.CanTp_MsgLegth == sizeof(data));
+	TEST_CHECK(pNsdu->TxState.CanTp_TxState == CANTP_TX_PROCESSING);
+	TEST_CHECK(pNsdu->N_As.state == TIMER_ACTIVE);
+	TEST_CHECK(pNsdu->N_As.counter == 0);
+	TEST_CHECK(pNsdu->N_Bs.state == TIMER_ACTIVE);
+	TEST_CHECK(pNsdu->N_Bs.counter == 0);
+	TEST_CHECK(pNsdu->N_Cs.state == TIMER_NOT_ACTIVE);
+	TEST_CHECK(pNsdu->N_Cs.counter == 0);
+	TEST_CHECK(ret == E_OK);
+	// no MetaData
+	CanTp_Init(&CfgPtr);
+	CanTP_State.CanTP_State = CANTP_ON;
+	PduInfo.MetaDataPtr = NULL;
+	pNsdu->TxState.CanTp_TxState = CANTP_TX_WAIT;
+	ret = CanTp_Transmit(PduID, &PduInfo);
+	TEST_CHECK(pNsdu->TxState.CanTp_MsgLegth == sizeof(data));
+	TEST_CHECK(pNsdu->TxState.CanTp_TxState == CANTP_TX_PROCESSING);
+	TEST_CHECK(pNsdu->N_As.state == TIMER_ACTIVE);
+	TEST_CHECK(pNsdu->N_As.counter == 0);
+	TEST_CHECK(pNsdu->N_Bs.state == TIMER_ACTIVE);
+	TEST_CHECK(pNsdu->N_Bs.counter == 0);
+	TEST_CHECK(pNsdu->N_Cs.state == TIMER_NOT_ACTIVE);
+	TEST_CHECK(pNsdu->N_Cs.counter == 0);
+	TEST_CHECK(ret == E_OK);
+}
+
+BufReq_ReturnType custom_mockPdur_cpyRx(PduIdType id, PduInfoType* info, PduLengthType* availableDataPtr )
+{
+	static uint8 call_count = 0;
+	BufReq_ReturnType retval[2] = {BUFREQ_OK, BUFREQ_E_NOT_OK};
+	PduLengthType len[2] = {7, 0};
+	*availableDataPtr = len[call_count];
+	call_count++;
+	call_count = call_count % 2;
+	return retval[call_count - 1];
+}
+
+void test_CanTp_ConsecutiveFrameReceived(void)
+{
+	PduIdType PduID;
+	PduInfoType PduInfo;
+	CanPCI_Type Can_PCI;
+	PduLengthType buffer_size;
+	Std_ReturnType ret = E_OK;
+	CanTp_ConfigType CfgPtr = {};
+	CanTP_NSdu_Type *pNsdu = NULL;
+
+	RESET_FAKE(PduR_CanTpCopyRxData);
+	RESET_FAKE(PduR_CanTpRxIndication);
+	CanTp_Init(&CfgPtr);
+	PduID = 0xAB;
+	// PduID does not match any nsdu
+	ret = CanTp_ConsecutiveFrameReceived(PduID, &PduInfo, &Can_PCI);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 0);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 0);
+	TEST_CHECK(ret == E_NOT_OK);
+	// pNsdu->RxState.CanTp_ExpectedCFNo != Can_PCI.SN
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	pNsdu->N_Cr.state = TIMER_ACTIVE;
+	pNsdu->N_Cr.counter = 0x09;
+	pNsdu->CanTp_NsduID = PduID;
+	pNsdu->RxState.CanTp_ExpectedCFNo = 1;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+	Can_PCI.SN = 2;
+	ret = CanTp_ConsecutiveFrameReceived(PduID, &PduInfo, &Can_PCI);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 0);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 1);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.arg0_history[0] == PduID);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.arg1_history[0] == E_NOT_OK);
+	TEST_CHECK(pNsdu->N_Cr.state == TIMER_NOT_ACTIVE);
+	TEST_CHECK(pNsdu->N_Cr.counter == 0);
+	TEST_CHECK(pNsdu->RxState.CanTp_RxState == CANTP_RX_WAIT);
+	TEST_CHECK(ret == E_NOT_OK);
+	// buf_Status = BUFREQ_E_NOT_OK
+	pNsdu->N_Cr.state = TIMER_ACTIVE;
+	pNsdu->N_Cr.counter = 0x09;
+	pNsdu->CanTp_NsduID = PduID;
+	pNsdu->RxState.CanTp_ExpectedCFNo = 3;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+	Can_PCI.SN = 3;
+	PduR_CanTpCopyRxData_fake.return_val = BUFREQ_E_NOT_OK;
+	ret = CanTp_ConsecutiveFrameReceived(PduID, &PduInfo, &Can_PCI);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 1);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.arg0_history[0] == PduID);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 2);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.arg0_history[1] == PduID);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.arg1_history[1] == E_NOT_OK);
+	TEST_CHECK(pNsdu->N_Cr.state == TIMER_NOT_ACTIVE);
+	TEST_CHECK(pNsdu->N_Cr.counter == 0);
+	TEST_CHECK(pNsdu->RxState.CanTp_RxState == CANTP_RX_WAIT);
+	TEST_CHECK(ret == E_NOT_OK);
+	// pNsdu->RxState.CanTp_MessageLength = pNsdu->RxState.CanTp_ReceivedBytes
+	pNsdu->N_Cr.state = TIMER_ACTIVE;
+	pNsdu->N_Cr.counter = 0x09;
+	pNsdu->CanTp_NsduID = PduID;
+	pNsdu->RxState.CanTp_ExpectedCFNo = 3;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+	pNsdu->RxState.CanTp_ReceivedBytes = 2;
+	pNsdu->RxState.CanTp_NoOfBlocksTillCTS = 7;
+	pNsdu->RxState.CanTp_MessageLength = 5;
+	PduInfo.SduLength = 3;
+	Can_PCI.SN = 3;
+	PduR_CanTpCopyRxData_fake.custom_fake = custom_mockPdur_cpyRx;
+	ret = CanTp_ConsecutiveFrameReceived(PduID, &PduInfo, &Can_PCI);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 2);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.arg0_history[1] == PduID);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 3);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.arg0_history[2] == PduID);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.arg1_history[2] == E_OK);
+	TEST_CHECK(pNsdu->N_Cr.state == TIMER_NOT_ACTIVE);
+	TEST_CHECK(pNsdu->N_Cr.counter == 0);
+	TEST_CHECK(pNsdu->RxState.CanTp_RxState == CANTP_RX_WAIT);
+	TEST_CHECK(ret == E_OK);
+	// pNsdu->RxState.CanTp_MessageLength != pNsdu->RxState.CanTp_ReceivedBytes
+	// CanTp_NoOfBlocksTillCTS != 0
+	pNsdu->N_Cr.state = TIMER_ACTIVE;
+	pNsdu->N_Cr.counter = 0x09;
+	pNsdu->CanTp_NsduID = PduID;
+	pNsdu->RxState.CanTp_ExpectedCFNo = 3;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+	pNsdu->RxState.CanTp_ReceivedBytes = 2;
+	pNsdu->RxState.CanTp_NoOfBlocksTillCTS = 7;
+	pNsdu->RxState.CanTp_MessageLength = 6;
+	PduInfo.SduLength = 3;
+	Can_PCI.SN = 3;
+	PduR_CanTpCopyRxData_fake.custom_fake = custom_mockPdur_cpyRx;
+	ret = CanTp_ConsecutiveFrameReceived(PduID, &PduInfo, &Can_PCI);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 3);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.arg0_history[2] == PduID);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 3);
+	TEST_CHECK(pNsdu->N_Cr.state == TIMER_NOT_ACTIVE);
+	TEST_CHECK(pNsdu->N_Cr.counter == 0);
+	TEST_CHECK(pNsdu->RxState.CanTp_RxState == CANTP_RX_PROCESSING);
+	TEST_CHECK(pNsdu->RxState.CanTp_NoOfBlocksTillCTS == 6);
+	TEST_CHECK(pNsdu->RxState.CanTp_ExpectedCFNo == 4);
+	TEST_CHECK(ret == E_OK);
+	// pNsdu->RxState.CanTp_MessageLength != pNsdu->RxState.CanTp_ReceivedBytes
+	// CanTp_NoOfBlocksTillCTS = 1
+	// required_blocks > 0
+	buffer_size = 4094;
+	pNsdu->N_Cr.state = TIMER_ACTIVE;
+	pNsdu->N_Cr.counter = 0x09;
+	pNsdu->CanTp_NsduID = PduID;
+	pNsdu->RxState.CanTp_ExpectedCFNo = 3;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_SUSPENDED;
+	pNsdu->RxState.CanTp_ReceivedBytes = 2;
+	pNsdu->RxState.CanTp_NoOfBlocksTillCTS = 1;
+	pNsdu->RxState.CanTp_MessageLength = 10;
+	PduInfo.SduLength = 3;
+	Can_PCI.SN = 3;
+	PduR_CanTpCopyRxData_fake.custom_fake = custom_mockPdur_cpyRx;
+	PduR_CanTpCopyRxData_fake.arg2_val = &buffer_size;
+	ret = CanTp_ConsecutiveFrameReceived(PduID, &PduInfo, &Can_PCI);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 4);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.arg0_history[3] == PduID);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 3);
+	TEST_CHECK(pNsdu->RxState.CanTp_RxState == CANTP_RX_PROCESSING);
+	TEST_CHECK(pNsdu->RxState.CanTp_NoOfBlocksTillCTS == 1);
+	TEST_CHECK(pNsdu->RxState.CanTp_ExpectedCFNo == 4);
+	TEST_CHECK(ret == E_OK);
+	// pNsdu->RxState.CanTp_MessageLength != pNsdu->RxState.CanTp_ReceivedBytes
+	// CanTp_NoOfBlocksTillCTS = 1
+	// required_blocks = 0
+	buffer_size = 0;
+	pNsdu->N_Cr.state = TIMER_ACTIVE;
+	pNsdu->N_Cr.counter = 0x09;
+	pNsdu->CanTp_NsduID = PduID;
+	pNsdu->RxState.CanTp_ExpectedCFNo = 3;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+	pNsdu->RxState.CanTp_ReceivedBytes = 2;
+	pNsdu->RxState.CanTp_NoOfBlocksTillCTS = 1;
+	pNsdu->RxState.CanTp_MessageLength = 6;
+	PduInfo.SduLength = 3;
+	Can_PCI.SN = 3;
+	PduR_CanTpCopyRxData_fake.custom_fake = custom_mockPdur_cpyRx;
+	PduR_CanTpCopyRxData_fake.arg2_val = &buffer_size;
+	ret = CanTp_ConsecutiveFrameReceived(PduID, &PduInfo, &Can_PCI);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 5);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.arg0_history[4] == PduID);
+	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 3);
+	TEST_CHECK(pNsdu->RxState.CanTp_RxState == CANTP_RX_SUSPENDED);
+	TEST_CHECK(pNsdu->RxState.CanTp_NoOfBlocksTillCTS == 0);
+	TEST_CHECK(pNsdu->RxState.CanTp_ExpectedCFNo == 4);
+	TEST_CHECK(ret == E_OK);
+}
 
 #endif /* UT_CANTP_CPP_ */

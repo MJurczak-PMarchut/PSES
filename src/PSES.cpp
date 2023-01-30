@@ -6,11 +6,7 @@
 // Description : Hello World in C++, Ansi-style
 //============================================================================
 
-//#define CATCH_CONFIG_RUNNER
 #include <iostream>
-
-//#include "catch.hpp"
-//#include "test1.hpp"
 #include "acutest.h"
 #include "UT_CanTP.hpp"
 #include "UT_CanTp_Timers.hpp"
@@ -35,6 +31,8 @@ TEST_LIST = {
 	{ "Test of CanTp_ReadParameter", test_CanTp_ReadParameter },
 	{ "Test of CanTp_ChangeParameter", test_CanTp_ChangeParameter },
 	{ "Test of CanTp_CancelReceive", test_CanTp_CancelReceive },
+	{ "Test of CanTp_Transmit", test_CanTp_Transmit },
+	{ "Test of CanTp_ConsecutiveFrameReceived", test_CanTp_ConsecutiveFrameReceived },
 	// CanTp_Timers tests
     { "Test of CanTp_TStart", test_CanTp_TStart },
 	{ "Test of CanTp_Timer_Incr", test_CanTp_Timer_Incr },
