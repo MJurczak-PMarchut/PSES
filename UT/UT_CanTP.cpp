@@ -468,7 +468,6 @@ void test_CanTp_Shutdown(void)
 void test_CanTp_ReadParameter(void)
 {
 	PduIdType PduID;
-	TPParameterType parameter;
 	uint16 value = 0;
 	CanTP_NSdu_Type *pNsdu = NULL;
 	Std_ReturnType ret = E_OK;
@@ -552,7 +551,6 @@ void test_CanTp_CancelReceive(void)
 void test_CanTp_ChangeParameter(void)
 {
 	PduIdType PduID;
-	TPParameterType parameter;
 	uint16 value = 0;
 	CanTP_NSdu_Type *pNsdu = NULL;
 	Std_ReturnType ret = E_OK;

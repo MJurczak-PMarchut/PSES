@@ -501,10 +501,6 @@ Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
 		CanTP_CopyDefaultNsduConfig(pNsdu);
 		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 		PduR_CanTpRxConfirmation(RxPduId, E_NOT_OK);
-		CanTP_MemSet(pNsdu, 0, sizeof(CanTP_NSdu_Type));
-		CanTp_TReset(&pNsdu->N_Ar);
-		CanTp_TReset(&pNsdu->N_Br);
-		CanTp_TReset(&pNsdu->N_Cr);
 		ret = E_OK;
 	}
 
