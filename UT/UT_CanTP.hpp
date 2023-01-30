@@ -26,5 +26,6 @@ void test_CanTP_MemCpy(void);
 void test_CanTp_ReadParameter(void);
 void test_CanTp_ChangeParameter(void);
 void test_CanTp_CancelReceive(void);
+void test_CanTp_Transmit(void);
 
 #endif /* UT_CANTP_HPP_ */

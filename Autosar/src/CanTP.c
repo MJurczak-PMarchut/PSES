@@ -653,8 +653,8 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
     Std_ReturnType tmp_return = E_NOT_OK;
     PduInfoType Tmp_Pdu;
 	CanTP_NSdu_Type *pNsdu = NULL;
-	pNsdu = CanTP_GetNsduFromPduID(TxPduId);
-	if(pNsdu != NULL){
+	pNsdu = CanTP_GetFreeNsdu(TxPduId);
+	if(pNsdu == NULL){
 		return E_NOT_OK;
 	}
     CanTP_MemSet(&Tmp_Pdu, 0, sizeof(Tmp_Pdu));
@@ -676,15 +676,6 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 	{
     	//no data to send
     	return E_NOT_OK;
-	}
-	if(pNsdu->TxState.CanTp_TxState != CANTP_TX_WAIT)
-	{
-		/*[SWS_CanTp_00123] ⌈If the configured transmit connection channel is in use
-		(state CANTP_TX_PROCESSING), the CanTp module shall reject new transmission
-		requests linked to this channel. To reject a transmission, CanTp returns
-		E_NOT_OK when the upper layer asks for a transmission with the
-		CanTp_Transmit() function.⌋ (SRS_Can_01066) */
-		return E_NOT_OK;
 	}
 
 	if (PduInfoPtr->MetaDataPtr != NULL_PTR)
@@ -708,6 +699,7 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 		//Do nothing
 	}
 	CanTP_CopyDefaultNsduConfig(pNsdu);
+	pNsdu->CanTp_NsduID = TxPduId;
 	pNsdu->TxState.CanTp_MsgLegth = PduInfoPtr->SduLength;
 	pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
 	CanTp_TReset(&pNsdu->N_As);

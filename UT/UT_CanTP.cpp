@@ -608,5 +608,73 @@ void test_CanTp_ChangeParameter(void)
 	TEST_CHECK(ret == E_OK);
 }
 
+void test_CanTp_Transmit(void)
+{
+	PduIdType PduID;
+	PduInfoType PduInfo;
+	Std_ReturnType ret = E_OK;
+	CanTp_ConfigType CfgPtr = {};
+	CanTP_NSdu_Type *pNsdu = NULL;
+	uint8 data[] = {0, 1, 2, 3};
+	PduInfo.SduLength = sizeof(data);
+	PduInfo.SduDataPtr = data;
+	PduInfo.MetaDataPtr = NULL;
+	PduID = 0x77;
+	// Nsdu with this PduID already taken
+	CanTp_Init(&CfgPtr);
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	pNsdu->CanTp_NsduID = PduID;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_Transmit(PduID, &PduInfo);
+	TEST_CHECK(ret == E_NOT_OK);
+	// CanTP_State = CANTP_OFF
+	CanTp_Init(&CfgPtr);
+	CanTP_State.CanTP_State = CANTP_OFF;
+	ret = CanTp_Transmit(PduID, &PduInfo);
+	TEST_CHECK(ret == E_NOT_OK);
+	// PduInfoType* = NULL
+	CanTp_Init(&CfgPtr);
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_Transmit(PduID, NULL);
+	TEST_CHECK(ret == E_NOT_OK);
+	// no data to send
+	CanTp_Init(&CfgPtr);
+	CanTP_State.CanTP_State = CANTP_ON;
+	PduInfo.SduLength = 0;
+	ret = CanTp_Transmit(PduID, &PduInfo);
+	TEST_CHECK(ret == E_NOT_OK);
+	// MetaData is present
+	CanTp_Init(&CfgPtr);
+	PduInfo.SduLength = sizeof(data);
+	CanTP_State.CanTP_State = CANTP_ON;
+	PduInfo.MetaDataPtr = data;
+	ret = CanTp_Transmit(PduID, &PduInfo);
+	pNsdu = CanTP_GetNsduFromPduID(PduID);
+	TEST_CHECK(pNsdu->TxState.CanTp_MsgLegth == sizeof(data));
+	TEST_CHECK(pNsdu->TxState.CanTp_TxState == CANTP_TX_PROCESSING);
+	TEST_CHECK(pNsdu->N_As.state == TIMER_ACTIVE);
+	TEST_CHECK(pNsdu->N_As.counter == 0);
+	TEST_CHECK(pNsdu->N_Bs.state == TIMER_ACTIVE);
+	TEST_CHECK(pNsdu->N_Bs.counter == 0);
+	TEST_CHECK(pNsdu->N_Cs.state == TIMER_NOT_ACTIVE);
+	TEST_CHECK(pNsdu->N_Cs.counter == 0);
+	TEST_CHECK(ret == E_OK);
+	// no MetaData
+	CanTp_Init(&CfgPtr);
+	CanTP_State.CanTP_State = CANTP_ON;
+	PduInfo.MetaDataPtr = NULL;
+	pNsdu->TxState.CanTp_TxState = CANTP_TX_WAIT;
+	ret = CanTp_Transmit(PduID, &PduInfo);
+	TEST_CHECK(pNsdu->TxState.CanTp_MsgLegth == sizeof(data));
+	TEST_CHECK(pNsdu->TxState.CanTp_TxState == CANTP_TX_PROCESSING);
+	TEST_CHECK(pNsdu->N_As.state == TIMER_ACTIVE);
+	TEST_CHECK(pNsdu->N_As.counter == 0);
+	TEST_CHECK(pNsdu->N_Bs.state == TIMER_ACTIVE);
+	TEST_CHECK(pNsdu->N_Bs.counter == 0);
+	TEST_CHECK(pNsdu->N_Cs.state == TIMER_NOT_ACTIVE);
+	TEST_CHECK(pNsdu->N_Cs.counter == 0);
+	TEST_CHECK(ret == E_OK);
+}
+
 
 #endif /* UT_CANTP_CPP_ */
