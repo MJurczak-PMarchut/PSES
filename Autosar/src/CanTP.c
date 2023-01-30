@@ -754,7 +754,7 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
 				 * notification service PduR_CanTpRxIndication().
 				 */
 				PduR_CanTpRxIndication(RxPduId, E_OK);
-				CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
+				CanTP_CopyDefaultNsduConfig(pNsdu);
 				pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 				retval = E_OK;
 			}
