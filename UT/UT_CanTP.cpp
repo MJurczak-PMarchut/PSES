@@ -778,10 +778,11 @@ void test_CanTp_ConsecutiveFrameReceived(void)
 	pNsdu->RxState.CanTp_MessageLength = 6;
 	PduInfo.SduLength = 3;
 	Can_PCI.SN = 3;
+	RESET_FAKE(PduR_CanTpCopyRxData);
 	PduR_CanTpCopyRxData_fake.custom_fake = custom_mockPdur_cpyRx;
 	ret = CanTp_ConsecutiveFrameReceived(PduID, &PduInfo, &Can_PCI);
-	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 3);
-	TEST_CHECK(PduR_CanTpCopyRxData_fake.arg0_history[2] == PduID);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 1);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.arg0_history[0] == PduID);
 	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 3);
 	TEST_CHECK(pNsdu->N_Cr.state == TIMER_NOT_ACTIVE);
 	TEST_CHECK(pNsdu->N_Cr.counter == 0);
@@ -806,8 +807,8 @@ void test_CanTp_ConsecutiveFrameReceived(void)
 	PduR_CanTpCopyRxData_fake.custom_fake = custom_mockPdur_cpyRx;
 	PduR_CanTpCopyRxData_fake.arg2_val = &buffer_size;
 	ret = CanTp_ConsecutiveFrameReceived(PduID, &PduInfo, &Can_PCI);
-	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 4);
-	TEST_CHECK(PduR_CanTpCopyRxData_fake.arg0_history[3] == PduID);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 2);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.arg0_history[1] == PduID);
 	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 3);
 	TEST_CHECK(pNsdu->RxState.CanTp_RxState == CANTP_RX_PROCESSING);
 	TEST_CHECK(pNsdu->RxState.CanTp_NoOfBlocksTillCTS == 1);
@@ -830,8 +831,8 @@ void test_CanTp_ConsecutiveFrameReceived(void)
 	PduR_CanTpCopyRxData_fake.custom_fake = custom_mockPdur_cpyRx;
 	PduR_CanTpCopyRxData_fake.arg2_val = &buffer_size;
 	ret = CanTp_ConsecutiveFrameReceived(PduID, &PduInfo, &Can_PCI);
-	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 5);
-	TEST_CHECK(PduR_CanTpCopyRxData_fake.arg0_history[4] == PduID);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.call_count == 3);
+	TEST_CHECK(PduR_CanTpCopyRxData_fake.arg0_history[2] == PduID);
 	TEST_CHECK(PduR_CanTpRxIndication_fake.call_count == 3);
 	TEST_CHECK(pNsdu->RxState.CanTp_RxState == CANTP_RX_SUSPENDED);
 	TEST_CHECK(pNsdu->RxState.CanTp_NoOfBlocksTillCTS == 0);
