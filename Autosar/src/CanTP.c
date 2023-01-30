@@ -102,7 +102,6 @@ typedef struct{
 } CanTP_InternalStateType;
 
 
-static uint32 FC_Wait_frame_ctr;
 
 
 typedef enum{
@@ -1404,7 +1403,7 @@ void CanTp_MainFunction(void){
 	uint16 block_size = 0;
 
 	PduLengthType buffer_len;
-	PduInfoType ULPduInfo;
+	PduInfoType ULPduInfo= {0,0};
 	CanPCI_Type FlowControl_PCI = {0};
 
 	CanTp_Timer_type *N_Ar;
@@ -1418,22 +1417,6 @@ void CanTp_MainFunction(void){
 	for(uint8 nsdu_iter = 0; nsdu_iter < NO_OF_NSDUS; nsdu_iter++)
 	{
 		CanTP_NSdu_Type nsdu = CanTP_State.Nsdu[nsdu_iter];
-
-		if(nsdu.RxState.CanTp_RxState == CANTP_RX_SUSPENDED){
-			PduInfoType rxPdu = {0,0};
-			PduLengthType buffer_len;
-			BufReq_State = PduR_CanTpCopyRxData(nsdu.CanTp_NsduID, &rxPdu, &buffer_len);
-			//enough buffer
-			if(BufReq_State == BUFREQ_OK)
-			{
-				if((buffer_len >=7) || (buffer_len >= (uint16)(nsdu.RxState.CanTp_MessageLength - nsdu.RxState.CanTp_ReceivedBytes)))
-				{
-					//FC(CTS)
-					//BS buffer_len / 7
-					nsdu.RxState.CanTp_RxState = CANTP_RX_PROCESSING;
-				}
-			}
-		}
 		//static boolean N_Ar_timeout, N_Br_timeout, N_Cr_timeout;
 		//TODO Do stuff here
 		N_Ar = &nsdu.N_Ar;
@@ -1453,14 +1436,36 @@ void CanTp_MainFunction(void){
 		CanTp_Timer_Incr(N_Cs);
 
 		if(N_Br->state == TIMER_ACTIVE){
+			if(CanTp_Timer_Timeout(N_Br)){
+				nsdu.RxState.CanTpRxWftMax ++;
+				N_Br->counter = 0;
+				if(nsdu.RxState.CanTpRxWftMax >= FC_WAIT_FRAME_CTR_MAX){
+					PduR_CanTpRxIndication(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, E_NOT_OK);
+					CanTP_CopyDefaultNsduConfig(&nsdu);
+					nsdu.RxState.CanTpRxWftMax = 0;
+				}
+				else{
+					FlowControl_PCI.FrameType = FlowControlFrame;
+					FlowControl_PCI.FS = FS_WAIT;
+					FlowControl_PCI.BS = block_size;
+					FlowControl_PCI.ST = 0;
+					if(CanTP_SendFlowControlFrame(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, &FlowControl_PCI) == E_NOT_OK){
+						CanTP_CopyDefaultNsduConfig(&nsdu);
+					}
+				}
+			}
+			else if(nsdu.RxState.CanTp_RxState==CANTP_RX_SUSPENDED){
 			BufReq_State=PduR_CanTpCopyRxData(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, &ULPduInfo, &buffer_len);
 			if(BufReq_State == BUFREQ_E_NOT_OK){
 				PduR_CanTpRxIndication(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, E_NOT_OK);
 			}
 			else{
-
-				//Jest jakas funkcja od wyznaczania rozmiaru bufora????
+				if((nsdu.RxState.CanTp_MessageLength-nsdu.RxState.CanTp_ReceivedBytes)>=7){
 				block_size=buffer_len/7;
+				}
+				else{
+					block_size=buffer_len/(nsdu.RxState.CanTp_MessageLength-nsdu.RxState.CanTp_ReceivedBytes);
+				}
 				if(block_size > 0){
 
 					CanTP_State.Nsdu[nsdu_iter].RxState.CanTp_NoOfBlocksTillCTS=block_size;
@@ -1478,26 +1483,9 @@ void CanTp_MainFunction(void){
 						CanTp_TReset(N_Br);
 					}
 				}
-				if(CanTp_Timer_Timeout(N_Br)){
-					nsdu.RxState.CanTpRxWftMax ++;
-					N_Br->counter = 0;
-					if(nsdu.RxState.CanTpRxWftMax >= FC_WAIT_FRAME_CTR_MAX){
-						PduR_CanTpRxIndication(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, E_NOT_OK);
-						CanTP_CopyDefaultNsduConfig(&nsdu);
-						nsdu.RxState.CanTpRxWftMax = 0;
-					}
-					else{
-						FlowControl_PCI.FrameType = FlowControlFrame;
-						FlowControl_PCI.FS = FS_WAIT;
-						FlowControl_PCI.BS = block_size;
-						FlowControl_PCI.ST = 0;
-						if(CanTP_SendFlowControlFrame(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, &FlowControl_PCI) == E_NOT_OK){
-							CanTP_CopyDefaultNsduConfig(&nsdu);
-						}
-					}
-				}
 			}
 		}
+	}
 		if(N_Cr->state == TIMER_ACTIVE){
 			if(CanTp_Timer_Timeout(N_Cr) == E_NOT_OK){
 				PduR_CanTpRxIndication(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, E_NOT_OK);
