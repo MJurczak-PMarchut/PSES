@@ -584,10 +584,10 @@ Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint
 				ret = E_OK;
 				break;
 			default:
-				break;
+				return E_NOT_OK;
 		}
+		*value = val;
 	}
-	*value = val;
 	return ret;
 }
 
@@ -607,11 +607,7 @@ Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
 		CanTP_CopyDefaultNsduConfig(pNsdu);
 		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 		PduR_CanTpRxConfirmation(RxPduId, E_NOT_OK);
-		CanTP_MemSet(&pNsdu, 0, sizeof(CanTP_NSdu_Type));
-		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
-		CanTp_TReset(&pNsdu->N_Ar);
-		CanTp_TReset(&pNsdu->N_Br);
-		CanTp_TReset(&pNsdu->N_Cr);
+		ret = E_OK;
 	}
 
 	return ret;

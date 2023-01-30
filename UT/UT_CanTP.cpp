@@ -20,6 +20,7 @@ DEFINE_FFF_GLOBALS;
 
 
 FAKE_VOID_FUNC(PduR_CanTpRxIndication, PduIdType, Std_ReturnType);
+FAKE_VOID_FUNC(PduR_CanTpRxConfirmation, PduIdType, Std_ReturnType);
 FAKE_VOID_FUNC(PduR_CanTpTxConfirmation, PduIdType, Std_ReturnType);
 FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpStartOfReception, PduIdType, PduInfoType*, uint32, PduLengthType*);
 FAKE_VALUE_FUNC(Std_ReturnType, CanIf_Transmit, PduIdType, PduInfoType*);
@@ -462,6 +463,149 @@ void test_CanTp_Shutdown(void)
 		TEST_CHECK(CanTP_State.Nsdu[NsduIter].N_As.counter == 0);
 		TEST_CHECK(CanTP_State.Nsdu[NsduIter].N_Br.state == TIMER_NOT_ACTIVE);
 	}
+}
+
+void test_CanTp_ReadParameter(void)
+{
+	PduIdType PduID;
+	uint16 value = 0;
+	CanTP_NSdu_Type *pNsdu = NULL;
+	Std_ReturnType ret = E_OK;
+	CanTp_ConfigType CfgPtr = {};
+	CanTp_Init(&CfgPtr);
+	// PduID does not match any nsdu
+	PduID = 0x55;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_ReadParameter(PduID, TP_STMIN, &value);
+	TEST_CHECK(value == 0);
+	TEST_CHECK(ret == E_NOT_OK);
+	// CanTP_State = CANTP_OFF
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	pNsdu->CanTp_NsduID = PduID;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+	pNsdu->RxState.sTMin = 0x01;
+	pNsdu->RxState.bs = 0x02;
+	CanTP_State.CanTP_State = CANTP_OFF;
+	ret = CanTp_ReadParameter(PduID, TP_STMIN, &value);
+	TEST_CHECK(value == 0);
+	TEST_CHECK(ret == E_NOT_OK);
+	// RxState = CANTP_RX_PROCESSING
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_ReadParameter(PduID, TP_STMIN, &value);
+	TEST_CHECK(value == 0);
+	TEST_CHECK(ret == E_NOT_OK);
+	// incorrect TPParameterType
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_ReadParameter(PduID, TP_BC, &value);
+	TEST_CHECK(value == 0);
+	TEST_CHECK(ret == E_NOT_OK);
+	// read sTMin
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_ReadParameter(PduID, TP_STMIN, &value);
+	TEST_CHECK(value == 0x01);
+	TEST_CHECK(ret == E_OK);
+	// read sTMin
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_ReadParameter(PduID, TP_BS, &value);
+	TEST_CHECK(value == 0x02);
+	TEST_CHECK(ret == E_OK);
+}
+
+void test_CanTp_CancelReceive(void)
+{
+	PduIdType PduID;
+	CanTP_NSdu_Type *pNsdu = NULL;
+	Std_ReturnType ret = E_OK;
+	CanTp_ConfigType CfgPtr = {};
+	RESET_FAKE(PduR_CanTpRxConfirmation);
+	CanTp_Init(&CfgPtr);
+	// PduID does not match any nsdu
+	PduID = 0x11;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_CancelReceive(PduID);
+	TEST_CHECK(PduR_CanTpRxConfirmation_fake.call_count == 0);
+	TEST_CHECK(ret == E_NOT_OK);
+	// CanTP_State = CANTP_OFF
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	pNsdu->CanTp_NsduID = PduID;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+	CanTP_State.CanTP_State = CANTP_OFF;
+	ret = CanTp_CancelReceive(PduID);
+	TEST_CHECK(PduR_CanTpRxConfirmation_fake.call_count == 0);
+	TEST_CHECK(pNsdu->RxState.CanTp_RxState == CANTP_RX_PROCESSING);
+	TEST_CHECK(ret == E_NOT_OK);
+	// cancel receive
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_CancelReceive(PduID);
+	TEST_CHECK(PduR_CanTpRxConfirmation_fake.call_count == 1);
+	TEST_CHECK(PduR_CanTpRxConfirmation_fake.arg0_history[0] == PduID);
+	TEST_CHECK(PduR_CanTpRxConfirmation_fake.arg1_history[0] == E_NOT_OK);
+	TEST_CHECK(pNsdu->RxState.CanTp_RxState == CANTP_RX_WAIT);
+	TEST_CHECK(ret == E_OK);
+}
+
+void test_CanTp_ChangeParameter(void)
+{
+	PduIdType PduID;
+	uint16 value = 0;
+	CanTP_NSdu_Type *pNsdu = NULL;
+	Std_ReturnType ret = E_OK;
+	CanTp_ConfigType CfgPtr = {};
+	CanTp_Init(&CfgPtr);
+	// PduID does not match any nsdu
+	value = 0x01;
+	PduID = 0x78;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_ChangeParameter(PduID, TP_STMIN, value);
+	TEST_CHECK(ret == E_NOT_OK);
+	// CanTP_State = CANTP_OFF
+	value = 0x01;
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	pNsdu->CanTp_NsduID = PduID;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+	pNsdu->RxState.sTMin = 0x00;
+	pNsdu->RxState.bs = 0x00;
+	CanTP_State.CanTP_State = CANTP_OFF;
+	ret = CanTp_ChangeParameter(PduID, TP_STMIN, value);
+	TEST_CHECK(pNsdu->RxState.sTMin == 0);
+	TEST_CHECK(pNsdu->RxState.bs == 0);
+	TEST_CHECK(ret == E_NOT_OK);
+	// RxState = CANTP_RX_PROCESSING
+	value = 0x01;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_ChangeParameter(PduID, TP_STMIN, value);
+	TEST_CHECK(pNsdu->RxState.sTMin == 0);
+	TEST_CHECK(pNsdu->RxState.bs == 0);
+	TEST_CHECK(ret == E_NOT_OK);
+	// incorrect TPParameterType
+	value = 0x01;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_ChangeParameter(PduID, TP_BC, value);
+	TEST_CHECK(pNsdu->RxState.sTMin == 0);
+	TEST_CHECK(pNsdu->RxState.bs == 0);
+	TEST_CHECK(ret == E_NOT_OK);
+	// set sTMin
+	value = 0xFE;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_ChangeParameter(PduID, TP_STMIN, value);
+	TEST_CHECK(pNsdu->RxState.sTMin == 0xFE);
+	TEST_CHECK(pNsdu->RxState.bs == 0);
+	TEST_CHECK(ret == E_OK);
+	// set sTMin
+	value = 0xFF;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_ChangeParameter(PduID, TP_BS, value);
+	TEST_CHECK(pNsdu->RxState.sTMin == 0xFE);
+	TEST_CHECK(pNsdu->RxState.bs == 0xFF);
+	TEST_CHECK(ret == E_OK);
 }
 
 
