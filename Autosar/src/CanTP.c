@@ -321,7 +321,7 @@ static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *C
 		PduInfo.SduDataPtr[0] |= (CanPCI->FS & 0xF);
 		PduInfo.SduDataPtr[1] = CanPCI->BS;
 		PduInfo.SduDataPtr[2] = CanPCI->ST;
-		PduInfo.SduLength = 8;
+		PduInfo.SduLength = sizeof(data);
 		retval =  CanIf_Transmit(PduID, &PduInfo);
 		if(retval == E_NOT_OK){
 			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
