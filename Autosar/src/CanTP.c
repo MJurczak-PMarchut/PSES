@@ -803,8 +803,7 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
 			 * PduR_CanTpRxIndication() with the result E_NOT_OK.
 			 */
 			PduR_CanTpRxIndication(RxPduId, E_NOT_OK);
-			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
-			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+			CanTP_CopyDefaultNsduConfig(pNsdu);
 		}
 	}
 	else{
@@ -815,8 +814,7 @@ static Std_ReturnType CanTp_ConsecutiveFrameReceived(PduIdType RxPduId, const Pd
 		 * by calling the indication function PduR_CanTpRxIndication() with the result E_NOT_OK.
 		*/
 		PduR_CanTpRxIndication(RxPduId, E_NOT_OK);
-		CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
-		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+		CanTP_CopyDefaultNsduConfig(pNsdu);
 	}
     return retval;
 }
