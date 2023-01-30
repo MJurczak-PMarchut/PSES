@@ -89,13 +89,25 @@ void test_CanTP_GetFreeNsdu(void)
 	TEST_CHECK(pNsdu == &CanTP_State.Nsdu[1]);
 }
 
-void test_CanTP_MemSet(void) //ToDo
+void test_CanTP_MemSet(void)
 {
-
+	uint8 test_data[8] = {0, 1, 2, 3 ,4, 5, 6, 7};
+	CanTP_MemSet(test_data, 10, sizeof(test_data));
+	for(uint8 data_iter = 0; data_iter < sizeof(test_data); data_iter++)
+	{
+		TEST_CHECK(test_data[data_iter] == 10);
+	}
 }
 
-void test_CanTP_MemCpy(void) //ToDo
+void test_CanTP_MemCpy(void)
 {
+	uint8 test_data_src[8] = {0, 1, 2, 3 ,4, 5, 6, 7};
+	uint8 test_data_dst[8] = {0, 0, 0, 0 ,0, 0, 0, 0};
+	CanTP_MemCpy(test_data_dst, test_data_src, sizeof(test_data_src));
+	for(uint8 data_iter = 0; data_iter < sizeof(test_data_src); data_iter++)
+	{
+		TEST_CHECK(test_data_dst[data_iter] == test_data_src[data_iter]);
+	}
 
 }
 

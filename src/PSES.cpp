@@ -28,6 +28,8 @@ TEST_LIST = {
 	{ "Test of CanTp_RxIndicationHandleSuspendedState", test_CanTp_RxIndicationHandleSuspendedState },
 	{ "Test of CanTp_FirstFrameReceived", test_CanTp_FirstFrameReceived },
 	{ "Test of CanTP_SendFlowControlFrame", test_CanTP_SendFlowControlFrame },
+	{ "Test of CanTP_MemSet", test_CanTP_MemSet},
+	{ "Test of CanTP_MemCpy", test_CanTP_MemCpy},
 	// CanTp_Timers tests
     { "Test of CanTp_TStart", test_CanTp_TStart },
 	{ "Test of CanTp_Timer_Incr", test_CanTp_Timer_Incr },
