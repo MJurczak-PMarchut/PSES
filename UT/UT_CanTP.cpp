@@ -20,6 +20,7 @@ DEFINE_FFF_GLOBALS;
 
 
 FAKE_VOID_FUNC(PduR_CanTpRxIndication, PduIdType, Std_ReturnType);
+FAKE_VOID_FUNC(PduR_CanTpRxConfirmation, PduIdType, Std_ReturnType);
 FAKE_VOID_FUNC(PduR_CanTpTxConfirmation, PduIdType, Std_ReturnType);
 FAKE_VALUE_FUNC(BufReq_ReturnType, PduR_CanTpStartOfReception, PduIdType, PduInfoType*, uint32, PduLengthType*);
 FAKE_VALUE_FUNC(Std_ReturnType, CanIf_Transmit, PduIdType, PduInfoType*);
@@ -513,6 +514,40 @@ void test_CanTp_ReadParameter(void)
 	ret = CanTp_ReadParameter(PduID, TP_BS, &value);
 	TEST_CHECK(value == 0x02);
 	TEST_CHECK(ret == E_OK);
+}
+
+void test_CanTp_CancelReceive(void)
+{
+	PduIdType PduID;
+	CanTP_NSdu_Type *pNsdu = NULL;
+	Std_ReturnType ret = E_OK;
+	CanTp_ConfigType CfgPtr = {};
+	RESET_FAKE(PduR_CanTpRxConfirmation);
+	CanTp_Init(&CfgPtr);
+	// PduID does not match any nsdu
+	PduID = 0x11;
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_CancelReceive(PduID);
+	TEST_CHECK(PduR_CanTpRxConfirmation_fake.call_count == 0);
+	TEST_CHECK(ret == E_NOT_OK);
+	// CanTP_State = CANTP_OFF
+	pNsdu = CanTP_GetFreeNsdu(PduID);
+	pNsdu->CanTp_NsduID = PduID;
+	pNsdu->RxState.CanTp_RxState = CANTP_RX_PROCESSING;
+	CanTP_State.CanTP_State = CANTP_OFF;
+	ret = CanTp_CancelReceive(PduID);
+	TEST_CHECK(PduR_CanTpRxConfirmation_fake.call_count == 0);
+	TEST_CHECK(pNsdu->RxState.CanTp_RxState == CANTP_RX_PROCESSING);
+	TEST_CHECK(ret == E_NOT_OK);
+	// cancel receive
+	CanTP_State.CanTP_State = CANTP_ON;
+	ret = CanTp_CancelReceive(PduID);
+	TEST_CHECK(PduR_CanTpRxConfirmation_fake.call_count == 1);
+	TEST_CHECK(PduR_CanTpRxConfirmation_fake.arg0_history[0] == PduID);
+	TEST_CHECK(PduR_CanTpRxConfirmation_fake.arg1_history[0] == E_NOT_OK);
+	TEST_CHECK(pNsdu->RxState.CanTp_RxState == CANTP_RX_WAIT);
+	TEST_CHECK(ret == E_OK);
+
 }
 
 

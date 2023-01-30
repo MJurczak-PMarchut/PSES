@@ -487,6 +487,7 @@ Std_ReturnType CanTp_CancelReceive(PduIdType RxPduId)
 		CanTP_CopyDefaultNsduConfig(pNsdu);
 		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
 		PduR_CanTpRxConfirmation(RxPduId, E_NOT_OK);
+		ret = E_OK;
 	}
 
 	return ret;
