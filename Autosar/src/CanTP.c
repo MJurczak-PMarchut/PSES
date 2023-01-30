@@ -378,8 +378,7 @@ static Std_ReturnType CanTP_NSDuTransmitHandler(PduIdType PduID){
 	}
 	else if(pNsdu->TxState.CanTp_BytesSent >= pNsdu->TxState.CanTp_MsgLegth){
 		//something went wrong nothing to send
-		CanTP_MemSet(&pNsdu->TxState, 0, sizeof(pNsdu->TxState));
-		pNsdu->TxState.CanTp_TxState= CANTP_TX_WAIT;
+		CanTP_CopyDefaultNsduConfig(pNsdu);
 	}
 	else{
 		//CF frame to be sent
@@ -453,8 +452,7 @@ static Std_ReturnType CanTP_SendFlowControlFrame(PduIdType PduID, CanPCI_Type *C
 		PduInfo.SduLength = sizeof(data);
 		retval =  CanIf_Transmit(PduID, &PduInfo);
 		if(retval == E_NOT_OK){
-			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
-			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+			CanTP_CopyDefaultNsduConfig(pNsdu);
 			PduR_CanTpRxIndication(PduID, E_NOT_OK);
 		}
 		else{
@@ -861,14 +859,12 @@ static Std_ReturnType CanTp_FlowFrameReceived(PduIdType RxPduId, const PduInfoTy
 					 * function PduR_CanTpTxConfirmation() with the result E_NOT_OK. ⌋
 					 */
 					PduR_CanTpTxConfirmation(RxPduId, E_NOT_OK);
-					CanTP_MemSet(&pNsdu->TxState, 0, sizeof(pNsdu->TxState));
-					pNsdu->TxState.CanTp_TxState = CANTP_TX_WAIT;
+					CanTP_CopyDefaultNsduConfig(pNsdu);
 					retval = E_OK;
 					break;
 				default:
 					PduR_CanTpTxConfirmation(RxPduId, E_NOT_OK);
-					CanTP_MemSet(&pNsdu->TxState, 0, sizeof(pNsdu->TxState));
-					pNsdu->TxState.CanTp_TxState = CANTP_TX_WAIT;
+					CanTP_CopyDefaultNsduConfig(pNsdu);
 					retval = E_OK;
 					break;
 			}
@@ -1174,8 +1170,7 @@ static void CanTp_RxIndicationHandleProcessingState(PduIdType RxPduId, const Pdu
 	{
 		case FirstFrame:
 			PduR_CanTpRxIndication(pNsdu->CanTp_NsduID, E_NOT_OK);
-			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
-			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+			CanTP_CopyDefaultNsduConfig(pNsdu);
 			CanTp_TReset(&pNsdu->N_Ar);
 			CanTp_TReset(&pNsdu->N_Br);
 			CanTp_TReset(&pNsdu->N_Cr);
@@ -1183,8 +1178,7 @@ static void CanTp_RxIndicationHandleProcessingState(PduIdType RxPduId, const Pdu
 			break;
 		case SingleFrame:
 			PduR_CanTpRxIndication(pNsdu->CanTp_NsduID, E_NOT_OK);
-			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
-			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+			CanTP_CopyDefaultNsduConfig(pNsdu);
 			CanTp_TReset(&pNsdu->N_Ar);
 			CanTp_TReset(&pNsdu->N_Br);
 			CanTp_TReset(&pNsdu->N_Cr);
@@ -1222,14 +1216,12 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 	{
 		case FirstFrame:
 			PduR_CanTpRxIndication (RxPduId, E_NOT_OK);
-			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
-			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+			CanTP_CopyDefaultNsduConfig(pNsdu);
 			retval = CanTp_FirstFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case SingleFrame:
 			PduR_CanTpRxIndication (pNsdu->CanTp_NsduID, E_NOT_OK);
-			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
-			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+			CanTP_CopyDefaultNsduConfig(pNsdu);
 			retval = CanTp_SingleFrameReceived(RxPduId, PduInfoPtr, Can_PCI);
 			break;
 		case FlowControlFrame:
@@ -1240,8 +1232,7 @@ static void CanTp_RxIndicationHandleSuspendedState(PduIdType RxPduId, const PduI
 			//We should not receive CF at this time as we do not have enough buffer space
 			//We reset communication and report an error
 			PduR_CanTpRxIndication (RxPduId, E_NOT_OK);
-			CanTP_MemSet(&pNsdu->RxState, 0, sizeof(pNsdu->RxState));
-			pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
+			CanTP_CopyDefaultNsduConfig(pNsdu);
 			break;
 		default:
 			//Error to be reported or ignored
@@ -1291,11 +1282,7 @@ void CanTp_RxIndication (PduIdType RxPduId, const PduInfoType* PduInfoPtr)
     	default:
     		//Report error
     		//JUSTYNA tu tez nie dziala xdddddd
-    		CanTP_MemSet(&CanTP_State.Nsdu, 0, sizeof(CanTP_State.Nsdu));
-    		pNsdu->RxState.CanTp_RxState = CANTP_RX_WAIT;
-    		CanTp_TReset(&pNsdu->N_Ar);
-    		CanTp_TReset(&pNsdu->N_Br);
-    		CanTp_TReset(&pNsdu->N_Cr);
+    		CanTP_CopyDefaultNsduConfig(pNsdu);
     		break;
     }
 }
@@ -1323,11 +1310,7 @@ void CanTp_TxConfirmation(PduIdType TxPduId, Std_ReturnType result)
 	else{
 		if(result == E_NOT_OK){
 			PduR_CanTpTxConfirmation(TxPduId, result);
-			CanTP_MemSet(&pNsdu->TxState, 0, sizeof(pNsdu->TxState));
-			pNsdu->TxState.CanTp_TxState= CANTP_TX_WAIT;
-			CanTp_TReset(&pNsdu->N_As);
-			CanTp_TReset(&pNsdu->N_Bs);
-			CanTp_TReset(&pNsdu->N_Cs);
+			CanTP_CopyDefaultNsduConfig(pNsdu);
 			//We do not retry transmission, abort
 			/*
 			 * [SWS_CanTp_00355] ⌈ CanTp shall abort the corrensponding session, when
