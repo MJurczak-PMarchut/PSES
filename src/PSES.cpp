@@ -32,6 +32,7 @@ TEST_LIST = {
 	{ "Test of CanTp_CancelTransmit", test_CanTp_CancelTransmit },
 	{ "Test of CanTP_MemSet", test_CanTP_MemSet},
 	{ "Test of CanTP_MemCpy", test_CanTP_MemCpy},
+	{ "Test of CanTp_ReadParameter", test_CanTp_ReadParameter},
 	// CanTp_Timers tests
     { "Test of CanTp_TStart", test_CanTp_TStart },
 	{ "Test of CanTp_Timer_Incr", test_CanTp_Timer_Incr },

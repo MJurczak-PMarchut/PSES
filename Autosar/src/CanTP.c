@@ -464,10 +464,10 @@ Std_ReturnType CanTp_ReadParameter(PduIdType id, TPParameterType parameter, uint
 				ret = E_OK;
 				break;
 			default:
-				break;
+				return E_NOT_OK;
 		}
+		*value = val;
 	}
-	*value = val;
 	return ret;
 }
 
