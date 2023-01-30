@@ -1476,17 +1476,11 @@ void CanTp_MainFunction(void){
 				PduR_CanTpTxConfirmation(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, E_NOT_OK);
 				CanTP_CopyDefaultNsduConfig(&nsdu);
 			}
-			else{
-				CanTP_NSDuTransmitHandler(nsdu.CanTp_NsduID);
-			}
 		}
 		if(N_Bs->state == TIMER_ACTIVE){
 			if(CanTp_Timer_Timeout(N_Bs) == E_NOT_OK){
 				PduR_CanTpTxConfirmation(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, E_NOT_OK);
 				CanTP_CopyDefaultNsduConfig(&nsdu);
-			}
-			else{
-				CanTP_NSDuTransmitHandler(nsdu.CanTp_NsduID);
 			}
 		}
 		if(N_As->state == TIMER_ACTIVE){
@@ -1494,9 +1488,7 @@ void CanTp_MainFunction(void){
 				PduR_CanTpTxConfirmation(CanTP_State.Nsdu[nsdu_iter].CanTp_NsduID, E_NOT_OK);
 				CanTP_CopyDefaultNsduConfig(&nsdu);
 			}
-			else{
-				CanTP_NSDuTransmitHandler(nsdu.CanTp_NsduID);
-			}
 		}
+		CanTP_NSDuTransmitHandler(nsdu.CanTp_NsduID);
 	}
 }
