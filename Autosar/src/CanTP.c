@@ -241,28 +241,135 @@ static Std_ReturnType CanTP_NSDuTransmitHandler(PduIdType PduID){
 	Std_ReturnType retval = E_NOT_OK;
 	//Check if there is anything to send
 	CanTP_NSdu_Type *pNsdu = NULL;
+
 	pNsdu = CanTP_GetNsduFromPduID(PduID);
 	if(pNsdu == NULL){
 		return E_NOT_OK;
 	}
-	if(pNsdu->TxState.CanTp_TxState == CANTP_TX_WAIT){
+	if((pNsdu->TxState.CanTp_TxState == CANTP_TX_WAIT) || (pNsdu->TxState.CanTp_TxState == CANTP_TX_SUSPENDED)){
 		return E_OK;
 	}
 	if(pNsdu->TxState.CanTp_BlocksToFCFrame == 0){
 		//we are waiting for CF
 		return E_OK;
 	}
-	//First farme, we should probably send it here
-	if(pNsdu->TxState.CanTp_MsgLegth < 8){
-		//SF
-	}
-	if(pNsdu->TxState.CanTp_BytesSent == 0){
 
-		if(pNsdu->TxState.CanTp_MsgLegth < 4096){
+	if(pNsdu->TxState.CanTp_BytesSent == 0){
+		//First farme, we should probably send it here
+		PduInfoType Tmp_Pdu;
+		BufReq_ReturnType BufReq_State;
+		PduLengthType Len_Pdu;
+		CanTP_MemSet(&Tmp_Pdu, 0, sizeof(Tmp_Pdu));
+		if(pNsdu->TxState.CanTp_MsgLegth < 8 ){
+
+			Tmp_Pdu.SduLength = pNsdu->TxState.CanTp_MsgLegth;
+			//call PduR
+			BufReq_State = PduR_CanTpCopyTxData(PduID, &Tmp_Pdu, NULL, &Len_Pdu);
+			if(BufReq_State == BUFREQ_OK){
+
+				//Start sending single frame: SF
+				PduInfoType PDU_To_send;
+				CanTP_MemSet(&PDU_To_send, 0, sizeof(PDU_To_send));
+				PDU_To_send.SduDataPtr[0] = SingleFrame << 4;
+				PDU_To_send.SduDataPtr[0] = 0x0F & pNsdu->TxState.CanTp_MsgLegth;
+				for (uint8 data_iter = 0; data_iter < pNsdu->TxState.CanTp_MsgLegth; data_iter++)
+				{
+					PDU_To_send.SduDataPtr[data_iter + 1] = Tmp_Pdu.SduDataPtr[data_iter];
+				}
+				if(CanIf_Transmit(PduID, &PDU_To_send) == E_OK ){
+					CanTp_TStart(&pNsdu->N_As);
+					CanTp_TStart(&pNsdu->N_Bs);
+					pNsdu->TxState.CanTp_BytesSent = pNsdu->TxState.CanTp_MsgLegth;
+					pNsdu->TxState.CanTp_TxState = CANTP_TX_SUSPENDED;
+					retval = E_OK;
+				}
+				else{
+				 /*
+					 [SWS_CanTp_00343]  CanTp shall terminate the current  transmission connection
+					  when CanIf_Transmit() returns E_NOT_OK when transmitting an SF, FF, of CF ()
+				 */
+				 PduR_CanTpTxConfirmation(PduID, E_NOT_OK);
+				 retval = E_NOT_OK;
+				}
+			}
+			else if (BufReq_State == BUFREQ_E_BUSY) {
+				//And now we wait for the buffer to become ready
+				//Start timers
+				CanTp_TStart(&pNsdu->N_Cs);
+				//JUSTYNA na pewno tu ten timer startujemy??
+				pNsdu->TxState.CanTp_TxState = CANTP_TX_SUSPENDED;
+
+			}
+			else
+			{
+				CanTP_CopyDefaultNsduConfig(pNsdu);
+				retval = E_NOT_OK;
+			}
+		}
+		else if(pNsdu->TxState.CanTp_MsgLegth < 4096){
 			// FF format 1
+			PduInfoType PDU_To_send;
+			CanTP_MemSet(&PDU_To_send, 0, sizeof(PDU_To_send));
+			//We want 6 bytes
+			Tmp_Pdu.SduLength = 6;
+			BufReq_State = PduR_CanTpCopyTxData(PduID, &Tmp_Pdu, NULL, &Len_Pdu);
+			PDU_To_send.SduDataPtr[0] = FirstFrame << 4;
+			PDU_To_send.SduDataPtr[0] |= 0x0F & (pNsdu->TxState.CanTp_MsgLegth >> 8);
+			PDU_To_send.SduDataPtr[1] = 0xFF & pNsdu->TxState.CanTp_MsgLegth;
+			for (uint8 data_iter = 0; data_iter < 6; data_iter++)
+			{
+				PDU_To_send.SduDataPtr[data_iter + 2] = Tmp_Pdu.SduDataPtr[data_iter];
+			}
+			if(CanIf_Transmit(PduID, &PDU_To_send) == E_OK ){
+				CanTp_TStart(&pNsdu->N_As);
+				CanTp_TStart(&pNsdu->N_Bs);
+				pNsdu->TxState.CanTp_TxState = CANTP_TX_SUSPENDED;
+				pNsdu->TxState.CanTp_BytesSent = 6;
+				retval = E_OK;
+			}
+			else{
+			 /*
+				 [SWS_CanTp_00343]  CanTp shall terminate the current  transmission connection
+				  when CanIf_Transmit() returns E_NOT_OK when transmitting an SF, FF, of CF ()
+			 */
+			 PduR_CanTpTxConfirmation(PduID, E_NOT_OK);
+			 retval = E_NOT_OK;
+			}
 		}
 		else if(pNsdu->TxState.CanTp_MsgLegth >= 4096){
 			// FF format 2
+			PduInfoType PDU_To_send;
+			CanTP_MemSet(&PDU_To_send, 0, sizeof(PDU_To_send));
+			BufReq_State = PduR_CanTpCopyTxData(PduID, &Tmp_Pdu, NULL, &Len_Pdu);
+			//only 2 bytes here
+			Tmp_Pdu.SduLength = 2;
+			PDU_To_send.SduDataPtr[0] = FirstFrame << 4;
+			PDU_To_send.SduDataPtr[1] = 0;
+
+			PDU_To_send.SduDataPtr[2] = (Tmp_Pdu.SduLength >> 24) & 0xFF;
+			PDU_To_send.SduDataPtr[3] = (Tmp_Pdu.SduLength >> 16) & 0xFF;
+			PDU_To_send.SduDataPtr[4] = (Tmp_Pdu.SduLength >> 8) & 0xFF;
+			PDU_To_send.SduDataPtr[5] = Tmp_Pdu.SduLength & 0xFF;
+			//Data at the end of the world
+			PDU_To_send.SduDataPtr[6] = Tmp_Pdu.SduDataPtr[0];
+			PDU_To_send.SduDataPtr[7] = Tmp_Pdu.SduDataPtr[1];
+
+			if(CanIf_Transmit(PduID, &PDU_To_send) == E_OK ){
+				CanTp_TStart(&pNsdu->N_As);
+				CanTp_TStart(&pNsdu->N_Bs);
+				//JUSTYNA tu w sumie nie wiem jakie, o te chodzi? XD w sensie czy tu tez normlnie wysylamy
+				pNsdu->TxState.CanTp_TxState = CANTP_TX_SUSPENDED;
+				pNsdu->TxState.CanTp_BytesSent = 2;
+				retval = E_OK;
+			}
+			else{
+			 /*
+				 [SWS_CanTp_00343]  CanTp shall terminate the current  transmission connection
+				  when CanIf_Transmit() returns E_NOT_OK when transmitting an SF, FF, of CF ()
+			 */
+				PduR_CanTpTxConfirmation(PduID, E_NOT_OK);
+				retval = E_NOT_OK;
+			}
 		}
 		else{
 			//wrong length
@@ -553,7 +660,7 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
     PduLengthType Len_Pdu;
 	CanTP_NSdu_Type *pNsdu = NULL;
 	pNsdu = CanTP_GetNsduFromPduID(TxPduId);
-	if(pNsdu == NULL){
+	if(pNsdu != NULL){
 		return E_NOT_OK;
 	}
     CanTP_MemSet(&Tmp_Pdu, 0, sizeof(Tmp_Pdu));
@@ -606,129 +713,15 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 	{
 		//Do nothing
 	}
-
-	if(PduInfoPtr->SduLength < 8){
-		//We only need to send a single frame
-		Tmp_Pdu.SduLength = PduInfoPtr->SduLength;
-		//call PduR
-		BufReq_State = PduR_CanTpCopyTxData(TxPduId, &Tmp_Pdu, NULL, &Len_Pdu);
-		if(BufReq_State == BUFREQ_OK){
-
-			//Start sending single frame: SF
-			PduInfoType PDU_To_send;
-			CanTP_MemSet(&PDU_To_send, 0, sizeof(PDU_To_send));
-			PDU_To_send.SduDataPtr[0] = SingleFrame << 4;
-			PDU_To_send.SduDataPtr[0] = 0x0F & PduInfoPtr->SduLength;
-			for (uint8 data_iter = 0; data_iter < PduInfoPtr->SduLength; data_iter++)
-			{
-				PDU_To_send.SduDataPtr[data_iter + 1] = Tmp_Pdu.SduDataPtr[data_iter];
-			}
-			if(CanIf_Transmit(TxPduId, &PDU_To_send) == E_OK ){
-				CanTp_TStart(&pNsdu->N_As);
-				CanTp_TStart(&pNsdu->N_Bs);
-				tmp_return = E_OK;
-			}
-			else{
-			 /*
-				 [SWS_CanTp_00343]  CanTp shall terminate the current  transmission connection
-				  when CanIf_Transmit() returns E_NOT_OK when transmitting an SF, FF, of CF ()
-			 */
-			 PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
-			 tmp_return = E_NOT_OK;
-			}
-		}
-		else if (BufReq_State == BUFREQ_E_BUSY) {
-			//And now we wait for the buffer to become ready
-			//Start timers
-			CanTp_TStart(&pNsdu->N_Cs);
-			//JUSTYNA na pewno tu ten timer startujemy??
-			pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
-			pNsdu->TxState.CanTp_BytesSent = PduInfoPtr->SduLength;
-			pNsdu->TxState.CanTp_MsgLegth = PduInfoPtr->SduLength;
-		}
-		else
-		{//tu tez XD nie rozumiem tego xdddd
-			CanTP_MemSet(&CanTP_State.Nsdu, 0, sizeof(CanTP_State.Nsdu));
-			pNsdu->TxState.CanTp_TxState = CANTP_TX_WAIT;
-			CanTp_TReset(&pNsdu->N_As);
-			CanTp_TReset(&pNsdu->N_Bs);
-			CanTp_TReset(&pNsdu->N_Cs);
-			tmp_return = E_NOT_OK;
-		}
-	}
-	else
-	{
-		pNsdu->CanTp_NsduID = TxPduId;
-		//Multiple frames to be sent
-		Tmp_Pdu.SduLength = PduInfoPtr->SduLength;
-		BufReq_State = PduR_CanTpCopyTxData(TxPduId, &Tmp_Pdu, NULL, &Len_Pdu);
-
-		/* SWS_CanTp_00206: the function CanTp_Transmit shall reject a request if the
-		 * CanTp_Transmit service is called for a N-SDU identifier which is being used in a
-		 * currently running CAN Transport Layer session. */
-		if(PduInfoPtr->SduLength <= 4095)
-		{
-			PduInfoType PDU_To_send;
-			CanTP_MemSet(&PDU_To_send, 0, sizeof(PDU_To_send));
-			PDU_To_send.SduDataPtr[0] = FirstFrame << 4;
-			PDU_To_send.SduDataPtr[0] |= 0x0F & (PduInfoPtr->SduLength >> 8);
-			PDU_To_send.SduDataPtr[1] = 0xFF & PduInfoPtr->SduLength;
-			for (uint8 data_iter = 0; data_iter < 6; data_iter++)
-			{
-				PDU_To_send.SduDataPtr[data_iter + 2] = Tmp_Pdu.SduDataPtr[data_iter];
-			}
-			if(CanIf_Transmit(TxPduId, &PDU_To_send) == E_OK ){
-				CanTp_TStart(&pNsdu->N_As);
-				CanTp_TStart(&pNsdu->N_Bs);
-				pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
-				pNsdu->TxState.CanTp_BytesSent = 6;
-				pNsdu->TxState.CanTp_MsgLegth = PduInfoPtr->SduLength;
-				tmp_return = E_OK;
-			}
-			else{
-			 /*
-				 [SWS_CanTp_00343]  CanTp shall terminate the current  transmission connection
-				  when CanIf_Transmit() returns E_NOT_OK when transmitting an SF, FF, of CF ()
-			 */
-			 PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
-			 tmp_return = E_NOT_OK;
-			}
-		}
-		else{
-			PduInfoType PDU_To_send;
-			CanTP_MemSet(&PDU_To_send, 0, sizeof(PDU_To_send));
-			PDU_To_send.SduDataPtr[0] = FirstFrame << 4;
-			PDU_To_send.SduDataPtr[1] = 0;
-
-			PDU_To_send.SduDataPtr[2] = (Tmp_Pdu.SduLength >> 24) & 0xFF;
-			PDU_To_send.SduDataPtr[3] = (Tmp_Pdu.SduLength >> 16) & 0xFF;
-			PDU_To_send.SduDataPtr[4] = (Tmp_Pdu.SduLength >> 8) & 0xFF;
-			PDU_To_send.SduDataPtr[5] = Tmp_Pdu.SduLength & 0xFF;
-			//Data at the end of the world
-			PDU_To_send.SduDataPtr[6] = Tmp_Pdu.SduDataPtr[0];
-			PDU_To_send.SduDataPtr[7] = Tmp_Pdu.SduDataPtr[1];
-
-			if(CanIf_Transmit(TxPduId, &PDU_To_send) == E_OK ){
-				CanTp_TStart(&pNsdu->N_As);
-				CanTp_TStart(&pNsdu->N_Bs);
-				//JUSTYNA tu w sumie nie wiem jakie, o te chodzi? XD w sensie czy tu tez normlnie wysylamy
-				pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
-				pNsdu->TxState.CanTp_BytesSent = 2;
-				pNsdu->TxState.CanTp_MsgLegth = PduInfoPtr->SduLength;
-				tmp_return = E_OK;
-			}
-			else{
-			 /*
-				 [SWS_CanTp_00343]  CanTp shall terminate the current  transmission connection
-				  when CanIf_Transmit() returns E_NOT_OK when transmitting an SF, FF, of CF ()
-			 */
-				PduR_CanTpTxConfirmation(TxPduId, E_NOT_OK);
-				tmp_return = E_NOT_OK;
-			}
-		}
-
-	}
-
+	CanTP_CopyDefaultNsduConfig(pNsdu);
+	pNsdu->TxState.CanTp_MsgLegth = PduInfoPtr->SduLength;
+	pNsdu->TxState.CanTp_TxState = CANTP_TX_PROCESSING;
+	CanTp_TReset(&pNsdu->N_As);
+	CanTp_TReset(&pNsdu->N_Bs);
+	CanTp_TReset(&pNsdu->N_Cs);
+	CanTp_TStart(&pNsdu->N_As);
+	CanTp_TStart(&pNsdu->N_Bs);
+	tmp_return = E_OK;
 
     return tmp_return;
 }
