@@ -24,6 +24,7 @@ void test_CanTP_SendFlowControlFrame(void);
 void test_CanTP_MemSet(void);
 void test_CanTP_MemCpy(void);
 void test_CanTp_ReadParameter(void);
+void test_CanTp_ChangeParameter(void);
 void test_CanTp_CancelReceive(void);
 
 #endif /* UT_CANTP_HPP_ */
