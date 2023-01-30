@@ -20,6 +20,7 @@ void test_CanTp_RxIndicationHandleSuspendedState(void);
 void test_CanTp_FirstFrameReceived(void);
 void test_CanTP_SendFlowControlFrame(void);
 void test_CanTp_CancelTransmit(void);
+void test_CanTp_Shutdown(void);
 
 
 
