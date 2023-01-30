@@ -652,8 +652,6 @@ Std_ReturnType CanTp_Transmit(PduIdType TxPduId, const PduInfoType* PduInfoPtr )
 {
     Std_ReturnType tmp_return = E_NOT_OK;
     PduInfoType Tmp_Pdu;
-    BufReq_ReturnType BufReq_State;
-    PduLengthType Len_Pdu;
 	CanTP_NSdu_Type *pNsdu = NULL;
 	pNsdu = CanTP_GetNsduFromPduID(TxPduId);
 	if(pNsdu != NULL){
