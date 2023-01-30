@@ -1460,7 +1460,7 @@ void CanTp_MainFunction(void){
 			else{
 
 				//Jest jakas funkcja od wyznaczania rozmiaru bufora????
-				block_size=0;
+				block_size=buffer_len/7;
 				if(block_size > 0){
 
 					CanTP_State.Nsdu[nsdu_iter].RxState.CanTp_NoOfBlocksTillCTS=block_size;
